@@ -12,7 +12,6 @@ jobs:
     uses: weewx-extensions/development_tools/.github/workflows/analyze-test.yml@v1.0.0
     with:
       module-name: 'mqttreplicate'
-      codecov-upload: false
       sonar-scan: false
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
