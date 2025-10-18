@@ -683,7 +683,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                 #                                          initialize=False)
                 db_manager = \
                     weewx.manager.open_manager(self.data_bindings[data_binding_key]['manager_dict'])
-    
+
                 self.data_bindings[data_binding_key]['last_good_timestamp'] = \
                     db_manager.lastGoodStamp()
                 if self.data_bindings[data_binding_key]['last_good_timestamp'] is None:
