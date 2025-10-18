@@ -44,11 +44,11 @@ MQTTREPLICATE_CONFIG = """
 
         # The MQTT QOS when subscribing to a topic.
         # The default value is 1.
-        subscribe_qos', 1))
+        subscribe_qos = 1
 
         # The MQTT QOS when publishing to a topic.
         # The default value is 1.
-        publish_qos', 1))
+        publish_qos = 1
 
         # The topic that the replication data is published to.
         # And therefore the topic that is subscribed to receive it.
@@ -74,7 +74,7 @@ MQTTREPLICATE_CONFIG = """
         # The prefix for response topic.
         # The default value is replicate/response.
         # The final default value is 'replicate/response/{MQTT client id}'.
-        # The response topic is the topic that the responser publishes all data to.
+        # The response topic is the topic that the responser publishes 'catchup'/'backfill' data to.
         # And therefore the response topic is the topic that the requester subscribes to.
         response_topic = replicate/response
 
@@ -100,7 +100,54 @@ MQTTREPLICATE_CONFIG = """
 
     [[Responder]]
         enable = false
+
+        # When retrieving secondary data to be published, replicated the largest difference in time that is accepted.
+        # Some extensions do not force the time to an archive interval, so the WeeWX default value of 'None' does not always work.
+        # The default value is 60.
+        delta = 60
+
+        # The maximum number of responser threads to create.
+        # The default value is 1.
+        # DEPRECATED - DO NOT USE
+        # max_responder_threads = 1
+
+        # The MQTT QOS when subscribing to a topic.
+        # The default value is 1.
+        subscribe_qos = 1
+
+        # The MQTT QOS when publishing to a topic.
+        # The default value is 1.
+        publish_qos = 1
+
+        # The topic that the replication data is published to.
+        # And therefore the topic that is subscribed to receive it.
+        # The default value is replicate/archive.
+        archive_topic = replicate/archive
+
+        # The MQTT server.
+        # The default value is localhost.
         host = localhost
+
+        # The port to connect to.
+        # The default value is 1883.
+        port = 1883
+
+        # Maximum period in seconds allowed between communications with the broker.
+        # The default is 60.
+        keepalive = 60
+
+        # Controls the MQTT logging.
+        # The default value is false.
+        log_mqtt = false
+
+        # The prefix for the request topic.
+        # Each replicating instance will have a unique request_topic
+        # The default value is replicate/request.
+        # The final default value is 'replicate/request/{instance name}'
+        # The request topic is the topic that the requester uses to request 'catchup'/'backfill' data.
+        # So, the responser subscribes to this topic
+        request_topic = replicate/request
+
         [[[weewx]]]
             [[[[wx_binding]]]]
                 type = main
