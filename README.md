@@ -2,7 +2,9 @@
 
 ## Description
 
-
+Using MQTT V5 request/respond functionality, replicate WeeWX databases.
+The requester, a WeeWX driver, is the secondary (copy) database(s).
+The responder, a WeeWX service, is the primary database(s)
 
 ## Preqrequisites
 
