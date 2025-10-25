@@ -59,6 +59,12 @@ source ~/weewx-venv/bin/activate
 
 ## Customizing
 
+weewx-mqtt/replicate consists of two WeeWX extensions that run in separate WeeWX instances.
+The first, `Requester`, is a driver, that is the set of secondary databases.
+The second, `Responder`, is a service that is the set of primary databases.
+These each have its own configuration section `[[Requester]]` and `[[Responder]]` respectively.
+The configuration options can be found [here](https://github.com/weewx-mqtt/replicate/wiki/Common-Options).
+
 ## Getting Help
 
 Feel free to [open an issue](https://github.com/weewx-mqtt/replicate/issues/new),
