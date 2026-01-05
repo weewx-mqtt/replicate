@@ -1,0 +1,196 @@
+---
+title: Introduction to configuring MQTTReplicate
+parent: Home Page
+nav_order: 2
+---
+
+## The `[MQTTReplicate]` section
+
+This configures the MQTT connection and any necessary WeeWX options.
+
+### driver = user.mqttreplicate
+
+### `[[Requester]]`
+
+Configuration data for the requester (the WeeWX driver).
+
+#### host
+
+The MQTT server.
+The default value is localhost.
+
+#### port
+
+The port to connect to.
+The default value is 1883.
+
+#### keepalive
+
+Maximum period in seconds allowed between communications with the broker.
+The default is 60.
+
+#### log_mqtt
+
+Controls the MQTT logging.
+Valid values are `true` or `false`.
+The default value is false.
+
+#### subscribe_qos
+
+The MQTT QOS when subscribing to a topic.
+The default value is 1.
+
+#### publish_qos
+
+The MQTT QOS when publishing to a topic.
+The default value is 1.
+
+#### archive_topic
+
+The topic that the replication data is published to.
+And therefore the topic that is subscribed to receive it.
+The default value is replicate/archive.
+
+#### request_topic
+
+The prefix for the request topic.
+Each replicating instance will have a unique request_topic
+The default value is replicate/request.
+The final default value is 'replicate/request/{instance name}'
+
+The request topic is the topic that the requester uses to request 'catchup'/'backfill' data.
+So, the responser subscribes to this topic
+
+#### response_topic
+
+The prefix for response topic.
+The default value is replicate/response.
+The final default value is 'replicate/response/{MQTT client id}'.
+The response topic is the topic that the responser publishes 'catchup'/'backfill' data to.
+And therefore the response topic is the topic that the requester subscribes to.
+
+#### loop_interval
+
+The time between between generating loop packets.
+The default value is 2.5.
+
+#### archive_interval
+
+The WeeWX archive interval.
+The default value is 300.
+
+#### startup_max_tries
+
+When performing 'catch up', the maximum number of times to see if the necessary data is available.
+The default value is 2.
+
+#### startup_wait_before_retry
+
+When performing 'catch up', the amount of time to `wait` for the necessary data.
+The default value is 10.
+
+#### archive_max_tries
+
+When generating archive records, the maximum number of times to see if the necessary data is available.
+The default value is 2.
+
+#### `[[[instance-name]]]
+
+This must match an `instance-name` in the `[[Responder]]` configuration, but can be anything.
+
+##### `[[[[binding-name]]]]`
+
+This is a primary/remote binding name, and must match a name in the same `[[[instance-name]]]` section of the `[[Responder]]`.
+A replicating instance consists of a primary (source) and secondary (target) databases to replicate.
+
+##### type
+
+The main data binding is the binding that WeeWX uses to store the archive data.
+Typically the data binding is 'wx_binding' and the database name is 'weewx'.
+Valid values are 'main' or 'secondary'.
+Default value is 'secondary'.
+
+##### secondary_data_binding
+
+This is the target/local database binding.
+It is the binding used by the requester to store the data.
+
+### `[[Responder]]`
+
+Configuration data for the responder (the WeeWX service).
+
+#### enable = false
+
+#### host
+
+The MQTT server.
+The default value is localhost.
+
+#### port
+
+The port to connect to.
+The default value is 1883.
+
+#### keepalive
+
+Maximum period in seconds allowed between communications with the broker.
+The default is 60.
+
+#### log_mqtt
+
+Controls the MQTT logging.
+Valid values are `true` or `false`.
+The default value is false.
+
+#### subscribe_qos
+
+The MQTT QOS when subscribing to a topic.
+The default value is 1.
+
+#### publish_qos
+
+The MQTT QOS when publishing to a topic.
+The default value is 1.
+
+#### archive_topic
+
+The topic that the replication data is published to.
+And therefore the topic that is subscribed to receive it.
+The default value is replicate/archive.
+
+#### request_topic
+
+The prefix for the request topic.
+Each replicating instance will have a unique request_topic
+The default value is replicate/request.
+The final default value is 'replicate/request/{instance name}'
+The request topic is the topic that the requester uses to request 'catchup'/'backfill' data.
+So, the responser subscribes to this topic
+
+#### delta
+
+When retrieving secondary data to be published, replicated the largest difference in time that is accepted.
+Some extensions do not force the time to an archive interval, so the WeeWX default value of 'None' does not always work.
+The default value is 60.
+
+#### max_responder_threads
+
+The maximum number of responser threads to create.
+The default value is 1.
+DEPRECATED - DO NOT USE
+
+#### `[[[instance-name]]]
+
+This is the name of source/remote binding.
+This must match an `instance-name` in the `[[Requester]]` configuration, but can be anything.
+
+##### `[[[[binding-name]]]]`
+
+This is a primary/remote binding name, and must match a name in the same `[[[instance-name]]]` section of the `[[Requester]]`.
+
+##### type
+
+The main data binding is the binding that WeeWX uses to store the archive data.
+Typically the data binding is 'wx_binding' and the database name is 'weewx'.
+Valid values are 'main' or 'secondary'.
+Default value is 'secondary'.
