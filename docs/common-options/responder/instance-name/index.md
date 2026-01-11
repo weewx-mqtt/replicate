@@ -8,4 +8,3 @@ nav_order: 1
 
 This is the name of source/remote binding.
 This must match an `instance-name` in the `[[Requester]]` configuration, but can be anything.
-

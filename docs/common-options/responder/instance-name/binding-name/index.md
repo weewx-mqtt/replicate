@@ -1,6 +1,7 @@
 ---
 title: Binding Name
 parent: Instance Name
+ancestor: Responder
 nav_order: 1
 ---
 
