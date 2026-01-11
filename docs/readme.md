@@ -63,10 +63,8 @@ weewx-mqtt/replicate consists of two WeeWX extensions that run in separate WeeWX
 The first, `Requester`, is a driver, that is the set of secondary databases.
 The second, `Responder`, is a service that is the set of primary databases.
 These each have its own configuration section `[[Requester]]` and `[[Responder]]` respectively.
-The configuration options can be found [here](https://github.com/weewx-mqtt/replicate/wiki/Common-Options).
 
 ## Updating
-
 
 ---
 **Getting Help**
