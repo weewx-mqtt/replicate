@@ -1,6 +1,5 @@
 ---
 title: Introduction to configuring MQTTReplicate
-parent: Home Page
 nav_order: 2
 ---
 

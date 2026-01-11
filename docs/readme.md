@@ -1,8 +1,4 @@
----
-title: WeeWX-Replicate
-parent: Home Page
-nav_order: 1
----
+# weewx-mqtt/replicate
 
 ## Description
 
@@ -25,7 +21,7 @@ The responder, a WeeWX service, is the primary database(s)
 
 *Note:* Not all 'supported' versions of MQTT have been tested.
 
-## Installation
+## Installing
 
 This extension is installed using the [weectl extension utility](https://www.weewx.com/docs/5.0/utilities/weectl-extension/).
 The latest release can be installed with the invocation
@@ -61,10 +57,25 @@ This means that this user should not need to use `sudo` to install the `weewx-mq
 source ~/weewx-venv/bin/activate
 ```
 
-## Customizing
+## Configuring
 
 weewx-mqtt/replicate consists of two WeeWX extensions that run in separate WeeWX instances.
 The first, `Requester`, is a driver, that is the set of secondary databases.
 The second, `Responder`, is a service that is the set of primary databases.
 These each have its own configuration section `[[Requester]]` and `[[Responder]]` respectively.
 The configuration options can be found [here](https://github.com/weewx-mqtt/replicate/wiki/Common-Options).
+
+## Updating
+
+
+---
+**Getting Help**
+
+For additional information see the [help](https://weewx-mqtt.github.io/replicate/home/).
+
+Feel free to
+[open an issue](https://github.com/weewx-mqtt/replicate/issues/new),
+[start a discussion in github](https://github.com/weewx-mqtt/replicate/discussions/new),
+[post on WeeWX google group](https://groups.google.com/g/weewx-user).
+When doing so, see
+[Help! Posting to weewx user](https://github.com/weewx/weewx/wiki/) for information on capturing the log.
