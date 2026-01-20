@@ -1,3 +1,17 @@
 {
-    "cmake.configureOnOpen": false
+    "pylint.enabled": true,
+    //"python.linting.pylintEnabled": false,
+
+    "python.linting.enabled": true,
+    //"python.linting.flake8Path": "${workspaceFolder}/.venv/bin/flake8", // Adjust path to your venv
+    "flake8.importStrategy": "fromEnvironment",
+    "python.analysis.extraPaths": [
+        "../weewx/src",
+        "bin"
+    ],
+    
+
+    //"python.linting.flake8CategorySeverity.F": "Error",
+
+
 }
