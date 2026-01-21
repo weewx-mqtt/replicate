@@ -443,10 +443,10 @@ class MQTTResponderLoopThread(threading.Thread):
         try:
             self.logger.logdbg((f"({self.client_id}) , "
                                 f"Request has, topic: {msg.topic}, "
+                                f"properties: {msg.properties}"
                                 f"QOS: {int(msg.qos)}, "
                                 f"retain: {msg.retain}, "
-                                f"payload: {msg.payload}, "
-                                f"properties: {msg.properties}"))
+                                f"payload: {msg.payload}, "))
 
             if not hasattr(msg.properties, 'UserProperty'):
                 self.logger.logerr((f'({self.client_id}) '
@@ -909,10 +909,10 @@ class MQTTRequesterLoopThread(threading.Thread):
         try:
             self.logger.logdbg((f"({self.client_id}) "
                                 f"Response has topic: {msg.topic}, "
+                                f"properties: {msg.properties}"
                                 f"QOS: {int(msg.qos)}, "
                                 f"retain: {msg.retain}, "
-                                f"payload: {msg.payload}, "
-                                f"properties: {msg.properties}"))
+                                f"payload: {msg.payload}, "))
 
             if not hasattr(msg.properties, 'UserProperty'):
                 self.logger.logerr((f'({self.client_id}) '
