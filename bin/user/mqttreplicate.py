@@ -426,6 +426,7 @@ class MQTTResponderLoopThread(threading.Thread):
 
     def run(self):
         self.thread_id = threading.get_native_id()
+        threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
         self.mqtt_client.loop_forever()
 
     def _on_connect(self, _userdata):
@@ -559,6 +560,7 @@ class MQTTResponderThread(threading.Thread):
 
     def run(self):
         ''' Publish the data. '''
+        threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
         for _data_binding_key, data_binding in self.data_bindings.items():
             data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
 
@@ -872,6 +874,7 @@ class MQTTRequesterLoopThread(threading.Thread):
 
     def run(self):
         self.thread_id = threading.get_native_id()
+        threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
         self.mqtt_client.loop_forever()
 
     def _on_connect(self, _userdata):
