@@ -34,17 +34,18 @@ class TestInit(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager'):
+                with mock.patch('user.mqttreplicate.MQTTClient'):
 
-                user.mqttreplicate.MQTTResponderThread(mock_logger,
-                                                       None,
-                                                       None,
-                                                       None,
-                                                       config,
-                                                       None,
-                                                       None,
-                                                       None,
-                                                       None,
-                                                       None)
+                    user.mqttreplicate.MQTTResponderThread(mock_logger,
+                                                           None,
+                                                           None,
+                                                           None,
+                                                           config,
+                                                           None,
+                                                           None,
+                                                           None,
+                                                           None,
+                                                           None)
 
             print("done 1")
 
