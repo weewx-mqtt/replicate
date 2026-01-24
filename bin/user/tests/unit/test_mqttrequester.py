@@ -34,14 +34,15 @@ class TestInit(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.Logger'):
-                with mock.patch('user.mqttreplicate.weewx.manager'):
-                    with mock.patch('user.mqttreplicate.MQTTClient'):
-                        with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
+            with mock.patch('user.mqttreplicate.paho.mqtt'):
+                with mock.patch('user.mqttreplicate.Logger'):
+                    with mock.patch('user.mqttreplicate.weewx.manager'):
+                        with mock.patch('user.mqttreplicate.MQTTClient'):
+                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
 
-                            user.mqttreplicate.MQTTRequester(config, mock_engine)
+                                user.mqttreplicate.MQTTRequester(config, mock_engine)
 
-                            print("done 1")
+                                print("done 1")
 
         print("done 2")
 
