@@ -37,7 +37,7 @@ ARCHIVE_TOPIC = 'replicate/archive'
 class ThreadError(Exception):
     ''' Exception raised when a critical error occurs in a child thread. '''
 
-class Logger:
+class Logger:  # pragma: no cover
     ''' Manage the logging '''
     def __init__(self):
         self.log = logging.getLogger(__name__)
@@ -961,7 +961,7 @@ class MQTTRequesterLoopThread(threading.Thread):
         if mid == self.response_topic_mid:
             self.subscribed = True
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     def add_request_parser(parser):
         ''' Add the requester parser, '''
         description = '''
