@@ -182,21 +182,25 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
             }
         }
 
+        data = helpers.random_string()
+
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.json'):
+                with mock.patch('user.mqttreplicate.json') as mock_json:
+                    mock_json.loads.return_value = data
+
                     SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                    mock_client,
-                                                                    None,
-                                                                    None,
-                                                                    None,
-                                                                    data_bindings,
-                                                                    None,
-                                                                    None,
-                                                                    None,
-                                                                    None,
-                                                                    None,
-                                                                    None)
+                                                                     mock_client,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     data_bindings,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None)
 
                     properties_dict = {
                         'UserProperty': [('data_binding', instance_name)]
@@ -213,7 +217,57 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
 
                     SUT._on_message(None, msg)
 
-                    print("done")
+                    mock_db_manager.addRecord.assert_called_once_with(data)
+
+    def test_on_message_with_main_database(self):
+        mock_logger = mock.Mock()
+        mock_client = mock.Mock()
+        mock_db_manager = mock.Mock()
+        mock_data_queue = mock.Mock()
+        instance_name = helpers.random_string()
+        data_bindings = {
+            instance_name: {
+                'dbmanager': mock_db_manager,
+                'type': 'main',
+            }
+        }
+
+        data = {'dateTime': helpers.random_string()}
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt'):
+                with mock.patch('user.mqttreplicate.json') as mock_json:
+                    mock_json.loads.return_value = data
+
+                    SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
+                                                                     mock_client,
+                                                                     None,
+                                                                     None,
+                                                                     mock_data_queue,
+                                                                     data_bindings,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None)
+
+                    properties_dict = {
+                        'UserProperty': [('data_binding', instance_name)]
+                    }
+
+                    msg_dict = {
+                        'topic': helpers.random_string(),
+                        'properties': namedtuple('properties', properties_dict.keys())(**properties_dict),
+                        'qos': random.randint(1, 10),
+                        'retain': helpers.random_string(),
+                        'payload': helpers.random_string().encode('utf-8'),
+                    }
+                    msg = namedtuple('msg', msg_dict.keys())(**msg_dict)
+
+                    SUT._on_message(None, msg)
+
+                    mock_data_queue.put.assert_called_once_with((data['dateTime'], data))
 
 if __name__ == '__main__':
     helpers.run_tests()
