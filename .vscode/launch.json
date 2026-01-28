@@ -5,6 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Specific test",
+            "type": "debugpy",
+            "request": "launch",
+            //"program": "${file}",
+            "program": "bin/user/tests/unit/test_mqttresponderthread.py",
+            "console": "integratedTerminal",
+            "args": [
+                //"TestInit",
+                //"test_PublishWeeWX_stanza_is_deprecated",
+
+                "TestMQTTResponderThread",
+                "test_run",
+            ],
+        },        
+        {
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",

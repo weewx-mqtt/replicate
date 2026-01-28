@@ -592,6 +592,9 @@ class MQTTResponderThread(threading.Thread):
                                                                      properties=data['properties'])
                         self.logger.logdbg((f"({self.client_id}) "
                                             f"returned {mqtt_message_info.mid} "))
+
+                        # Add the message 'mid' to the 'mids collection', self.mids.
+                        # This collection will be monitored (in _on_publish) to know when it safe to disconnect.
                         self.mids[mqtt_message_info.mid] = {}
                         self.mids[mqtt_message_info.mid]['time_stamp'] = time.time()
                         self.mids[mqtt_message_info.mid]['qos'] = self.publish_qos
@@ -630,13 +633,15 @@ class MQTTResponderThread(threading.Thread):
             time_stamp = self.mids[mid]['time_stamp']
             qos = self.mids[mid]['qos']
             del self.mids[mid]
-        # ToDo: Investigate 'mids'
+        # Each response that is published adds its 'mid' to the 'mid collection', self.mids.
+        # If all messages have been 'published', we can safely disconnect from the broker.
         if len(self.mids) > 0:
             self.logger.logdbg((f"({self.client_id}) "
                                 f"Published at (int(time.time())): {time_stamp} {mid} {qos}"))
             self.logger.logdbg((f"({self.client_id}) "
                                 f"Inflight at ({int(time.time())}): mids {self.mids}"))
         else:
+            # ToDo: add a logdbg here
             self.mqtt_client.disconnect()
 
     def _on_log(self, _client, _userdata, level, msg):
