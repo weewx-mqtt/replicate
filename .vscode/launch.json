@@ -9,14 +9,14 @@
             "type": "debugpy",
             "request": "launch",
             //"program": "${file}",
-            "program": "bin/user/tests/unit/test_mqttresponderthread.py",
+            "program": "bin/user/tests/unit/test_mqttresponderloopthread.py",
             "console": "integratedTerminal",
             "args": [
                 //"TestInit",
                 //"test_PublishWeeWX_stanza_is_deprecated",
 
-                "TestMQTTResponderThread",
-                "test_on_publish",
+                "TestMQTTResponderLoopThread",
+                "test_on_message",
             ],
         },        
         {
