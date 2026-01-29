@@ -17,6 +17,9 @@ import random
 
 import user.mqttreplicate
 
+class Properties:
+    pass
+
 class TestMQTTResponderLoopThread(unittest.TestCase):
     def test_init(self):
         mock_logger = mock.Mock()
@@ -109,7 +112,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         }
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
+            with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
 
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
@@ -127,17 +130,23 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                     'UserProperty': [('data_binding', instance_name)],
                     'ResponseTopic': helpers.random_string(),
                 }
+                properties = namedtuple('properties', properties_dict.keys())(**properties_dict)
 
+                mock_mqtt.client.Properties.return_value = Properties()
+
+                timestamp = random.randint(1, 9999)
                 msg_dict = {
                     'topic': helpers.random_string(),
-                    'properties': namedtuple('properties', properties_dict.keys())(**properties_dict),
+                    'properties': properties,
                     'qos': random.randint(1, 10),
                     'retain': helpers.random_string(),
-                    'payload': str(random.randint(1, 9999)).encode('utf-8'),
+                    'payload': str(timestamp).encode('utf-8'),
                 }
                 msg = namedtuple('msg', msg_dict.keys())(**msg_dict)
 
                 SUT._on_message(None, msg)
+
+                mock_queue.put.assert_called_once()
                 print("done 1")
 
         print("done 2")
