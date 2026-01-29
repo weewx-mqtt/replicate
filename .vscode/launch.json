@@ -16,7 +16,7 @@
                 //"test_PublishWeeWX_stanza_is_deprecated",
 
                 "TestMQTTResponderThread",
-                "test_run",
+                "test_on_publish",
             ],
         },        
         {
