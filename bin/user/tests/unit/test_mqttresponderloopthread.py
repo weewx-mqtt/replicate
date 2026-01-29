@@ -12,6 +12,7 @@ import mock
 
 import helpers
 
+from collections import namedtuple
 import random
 
 import user.mqttreplicate
@@ -97,6 +98,15 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
     def test_on_message(self):
         mock_logger = mock.Mock()
         mock_client = mock.Mock()
+        mock_queue = mock.Mock()
+        mock_db_manager = mock.Mock()
+        instance_name = helpers.random_string()
+        data_bindings = {
+            instance_name: {
+                'dbmanager': mock_db_manager,
+                'type': None,
+            }
+        }
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
@@ -105,15 +115,29 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                                                                  mock_client,
                                                                  None,
                                                                  None,
-                                                                 None,
-                                                                 None,
+                                                                 mock_queue,
+                                                                 data_bindings,
                                                                  None,
                                                                  None,
                                                                  None,
                                                                  None,
                                                                  None)
 
-                print(SUT.client_id)
+                properties_dict = {
+                    'UserProperty': [('data_binding', instance_name)],
+                    'ResponseTopic': helpers.random_string(),
+                }
+
+                msg_dict = {
+                    'topic': helpers.random_string(),
+                    'properties': namedtuple('properties', properties_dict.keys())(**properties_dict),
+                    'qos': random.randint(1, 10),
+                    'retain': helpers.random_string(),
+                    'payload': str(random.randint(1, 9999)).encode('utf-8'),
+                }
+                msg = namedtuple('msg', msg_dict.keys())(**msg_dict)
+
+                SUT._on_message(None, msg)
                 print("done 1")
 
         print("done 2")
