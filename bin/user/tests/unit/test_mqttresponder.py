@@ -17,6 +17,10 @@ import helpers
 
 import user.mqttreplicate
 
+class Event:
+    def __init__(self, record):
+        self.record = record
+
 class TestMQTTResponder(unittest.TestCase):
     def test_init(self):
         mock_engine = mock.Mock()
@@ -126,6 +130,46 @@ class TestMQTTResponder(unittest.TestCase):
                                     mock_db_manager.close.assert_called_once_with()
                                     mock_client.disconnect.assert_called_once_with()
                                     mock_queue().put.assert_called_once_with(None)
+
+    def test_new_archive_record(self):
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                    helpers.random_string(): {
+                        f'{helpers.random_string()}-secondary': {
+                        },
+                        f'{helpers.random_string()}-main': {
+                            'type': 'main'
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
+                        with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
+                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
+                                with mock.patch('user.mqttreplicate.json'):
+                                    mock_db_manager = mock.Mock()
+                                    mock_manager.open_manager.return_value = mock_db_manager
+
+                                    mock_client = mock.Mock()
+                                    mock_mqtt_client.get_client.return_value = mock_client
+
+                                    SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+
+                                    event = Event({'dateTime': random.randint(9999, 99999)})
+
+                                    SUT.new_archive_record(event)
+
+                                    mock_db_manager.getRecord.assert_called_once_with(event.record['dateTime'], max_delta=60)
+                                    self.assertEqual(mock_client.publish.call_count, 2)
 
     def test_template(self):
         mock_engine = mock.Mock()
