@@ -171,34 +171,5 @@ class TestMQTTResponder(unittest.TestCase):
                                     mock_db_manager.getRecord.assert_called_once_with(event.record['dateTime'], max_delta=60)
                                     self.assertEqual(mock_client.publish.call_count, 2)
 
-    def test_template(self):
-        mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    helpers.random_string(): {
-                        helpers.random_string(): {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
-
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.Logger'):
-                with mock.patch('user.mqttreplicate.weewx.manager'):
-                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
-
-                                SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-                                print(SUT.client_id)
-
-                                print("done 1")
-
-        print("done 2")
-
 if __name__ == '__main__':
     helpers.run_tests()

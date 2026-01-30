@@ -127,7 +127,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(SUT.logger.loginf.call_count, 3)
+                                        self.assertEqual(mock_logger().loginf.call_count, 3)
 
     def test_gen_archive_records(self):
         mock_engine = mock.Mock()
@@ -163,36 +163,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(SUT.logger.loginf.call_count, 3)
-
-    def test_template(self):
-        mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Requester': {
-                    helpers.random_string(): {
-                        helpers.random_string(): {
-                            'secondary_data_binding': helpers.random_string()
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
-
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
-                    with mock.patch('user.mqttreplicate.weewx.manager'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
-
-                                user.mqttreplicate.MQTTRequester(config, mock_engine)
-
-                                print("done 1")
-
-        print("done 2")
+                                        self.assertEqual(mock_logger().loginf.call_count, 3)
 
 if __name__ == '__main__':
     helpers.run_tests()

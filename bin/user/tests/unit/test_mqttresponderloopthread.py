@@ -147,33 +147,6 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                 SUT._on_message(None, msg)
 
                 mock_queue.put.assert_called_once()
-                print("done 1")
-
-        print("done 2")
-
-    def test_template(self):
-        mock_logger = mock.Mock()
-        mock_client = mock.Mock()
-
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
-
-                print(SUT.client_id)
-                print("done 1")
-
-        print("done 2")
 
 if __name__ == '__main__':
     helpers.run_tests()
