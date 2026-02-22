@@ -273,6 +273,7 @@ class MQTTResponder(weewx.engine.StdService):
         self.max_responder_threads = to_int(service_dict.get('max_responder_threads', 1))
         log_mqtt = to_bool(service_dict.get('log_mqtt', False))
 
+        self.main_data_binding = None
         self.data_bindings = {}
         for data_binding_name, data_binding in service_dict[instance_name].items():
             data_binding_key = f"{instance_name}/{data_binding_name}"
@@ -284,7 +285,12 @@ class MQTTResponder(weewx.engine.StdService):
             self.data_bindings[data_binding_key]['dbmanager'] = \
                 weewx.manager.open_manager(manager_dict)
             if self.data_bindings[data_binding_key]['type'] == 'main':
+                if self.main_data_binding is not None:
+                    raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
                 self.main_data_binding = data_binding_key
+
+        if self.main_data_binding is None:
+            raise ValueError("No 'main' data bindings found")
 
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
@@ -705,7 +711,12 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
                 self.data_bindings[data_binding_key]['dbmanager'] = None
                 if self.data_bindings[data_binding_key]['type'] == 'main':
+                    if self.main_data_binding is not None:
+                        raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
                     self.main_data_binding = data_binding_key
+
+        if self.main_data_binding is None:
+            raise ValueError("No 'main' data bindings found")
 
         if stn_dict.get('command_line'):
             self.data_bindings[self.main_data_binding]['type'] = 'secondary'
