@@ -574,11 +574,11 @@ class MQTTResponderThread(threading.Thread):
                     self.mqtt_client.connect(self.host, self.port, self.keepalive)
 
                     record_count = 0
-                    self.logger.dbg((f'({self.client_id}) '
-                                     f'Responding/publishing topic {data["topic"]} '
-                                     f'data_binding {data["data_binding"]} '
-                                     f'qos {self.publish_qos} '
-                                     f'properties {data["properties"]}'))
+                    self.logger.logdbg((f'({self.client_id}) '
+                                        f'Responding/publishing topic {data["topic"]} '
+                                        f'data_binding {data["data_binding"]} '
+                                        f'qos {self.publish_qos} '
+                                        f'properties {data["properties"]}'))
                     for record in self.data_bindings[data['data_binding']]['dbmanager']\
                             .genBatchRecords(data['start_timestamp']):
                         record_count += 1
