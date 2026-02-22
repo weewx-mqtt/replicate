@@ -1,0 +1,12 @@
+{
+    "md013": {
+        "line_length": 150
+    },
+    // md022
+    // Multiple headings with the same content
+    "md024": {
+        "siblings_only": true
+    },
+    //  Fenced code blocks should have a language specified
+    "md040": false
+}
