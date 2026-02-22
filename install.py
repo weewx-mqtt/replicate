@@ -85,14 +85,14 @@ MQTTREPLICATE_CONFIG = """
         # The request topic is the topic that the requester uses to request 'catchup'/'backfill' data.
         request_topic = replicate/request
 
-        # This configures the replicating instance.
-        # This needs to match an entry in the [[Responder]] section.
-        # A replicating instance consists of a primary (source) and secondary (target) databases to replicate.
+        # This configures the replicating instance(s).
+        # Each replicating instance name needs to match an entry in a MQTTReplicate [[Responder]] section.
+        # A replicating instance consists of a set of primary (source) databases to replicate.
         [[[weewx]]]
             # This is a source/remote binding
             # And must match a binding in the 'Responder' configuration
             [[[[wx_binding]]]]
-                # The main data binding is the  that WeeWX uses to store the archive data.
+                # The main data binding is the database that WeeWX uses to store the archive data.
                 # Typically the data binding is 'wx_binding' and the database name is 'weewx'.
                 type = main
                 # This is the target/local database binding
@@ -148,8 +148,17 @@ MQTTREPLICATE_CONFIG = """
         # So, the responser subscribes to this topic
         request_topic = replicate/request
 
+        # This configures the replicating instance.
+        # There can be only one replicating instance in a running WeeWX instance
+        # The name must be unique across all running MQTTReplicate/responders.
+        # This needs to match an entry in the [[Requester]] section.
+        # A replicating instance consists of a set of primary (source) databases to replicate.
         [[[weewx]]]
+            # This is a primary data binding
+            # And must match a binding in the 'Requester' configuration
             [[[[wx_binding]]]]
+                # The main data binding is the database that WeeWX uses to store the archive data.
+                # Typically the data binding is 'wx_binding' and the database name is 'weewx'.
                 type = main
 """
 
