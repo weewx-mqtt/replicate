@@ -12,14 +12,14 @@ The responder, a WeeWX service, is the primary database(s).
 
 ## Requester
 
-### Primary thread
+### Top-level thread
 
 #### When instance is created
 
 - Thread is created to process data from responder (primary database(s)).
 - Publishes a request for all records later than last record in database(s).
-  - topic: replicate/request
-  - ResponseTopic property: replicate/response
+  - topic: replicate/request/instance-name
+  - ResponseTopic property: replicate/response/clientid
   - UserProperty property: data_binding = instance-name/responder-binding-name
   - Note: 'main' binding request is done last
 - Note: The response will be processed in the secondary thread.
@@ -37,13 +37,13 @@ The responder, a WeeWX service, is the primary database(s).
 - Generates 'empty' packets
   - Required for WeeWX processing.
 
-### Secondary thread
+### Child thread
 
 - Connects using paho mqtt client that is shared with primary thread.
 - Subscribes to 'catchup' topic to receive 'catchup' data.
-  - topic: request/topic
+  - topic: replicate/request/instance-name
 - Subscribes to 'archive' topic to receive 'archive' data.
-  - topic: archive/topic
+  - topic: replicate/archive
 - Runs paho mqtt in 'blocking mode' (loop_forever)
 - When MQTT message is received
   - For 'main' database, data put into the queue to be processed by the primary thread (genStartupRecords or genArchiveRecords).
@@ -53,7 +53,7 @@ The responder, a WeeWX service, is the primary database(s).
 
 Consists of 3 threads
 
-### Primary thread
+### Top-level thread
 
 thread creation
 
@@ -64,22 +64,22 @@ thread creation
   - Note: 'main' binding published last
   - Note: 'main' binding uses the archive record. All other bindings data retrieve data from database.
 
-### Secondary thread (currently MQTTResponderLoopThread)
+### First child thread (currently MQTTResponderLoopThread)
 
 - Performs connection for client shared between this and primary thread.
 - Runs paho mqtt in 'blocking mode' (loop_forever)
 - receives/subscribes to requests to 'catchup'
-  - topic: replicate/request
+  - topic: replicate/request/instance-name
   - Puts request in the queue to be processed by the tertiary thread(s)
     - Includes the data_binding value from the user property of the message
 
-### Tertiary thread(s) (currently MQTTResponderThread)
+### Second child thread(s) (currently MQTTResponderThread)
 
 #### Monitors 'catchup' queue
 
 - Connects to the broker.
 - Retrieves the 'catchup' data from the database specified in the user property data_binding value
 - Publishes 'catchup' data
-  - topic: replicate/response
+  - topic: replicate/response/secondary-instance-clientid
   - UserProperty property: data_binding = data binding used to retrieve the data
 - Disconnects from broker when last message has been published (on_publish callback)
