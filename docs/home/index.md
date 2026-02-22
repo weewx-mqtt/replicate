@@ -35,7 +35,7 @@ The responder, a WeeWX service, is the primary database(s).
 #### genLoopPackets
 
 - Generates 'empty' packets
-- Required for WeeWX processing.
+  - Required for WeeWX processing.
 
 ### Secondary thread
 
