@@ -33,6 +33,7 @@ class TestMQTTResponder(unittest.TestCase):
                 'Responder': {
                     instance_name: {
                         primary_name: {
+                            'type': 'main'
                         }
                     }
                 }
@@ -61,7 +62,7 @@ class TestMQTTResponder(unittest.TestCase):
                                         data_bindings = {
                                             f"{instance_name}/{primary_name}": {
                                                 'delta': 60,
-                                                'type': 'secondary',
+                                                'type': 'main',
                                                 'dbmanager': mock_db_manager,
                                             }
                                         }
@@ -101,6 +102,7 @@ class TestMQTTResponder(unittest.TestCase):
                 'Responder': {
                     helpers.random_string(): {
                         helpers.random_string(): {
+                            'type': 'main'
                         }
                     }
                 }

@@ -51,6 +51,7 @@ class TestMQTTRequester(unittest.TestCase):
                 'Requester': {
                     instance_name: {
                         primary_name: {
+                            'type': 'main',
                             'secondary_data_binding': helpers.random_string()
                         }
                     }
@@ -85,7 +86,7 @@ class TestMQTTRequester(unittest.TestCase):
                                     expected_results = {
                                         f"{instance_name}/{primary_name}": {
                                             'request_topic': f"replicate/request/{instance_name}",
-                                            'type': 'secondary',
+                                            'type': 'main',
                                             'manager_dict': manager_dict,
                                             'last_good_timestamp': last_good_timestamp,
                                             'dbmanager': None,
@@ -100,6 +101,7 @@ class TestMQTTRequester(unittest.TestCase):
                 'Requester': {
                     helpers.random_string(): {
                         helpers.random_string(): {
+                            'type': 'main',
                             'secondary_data_binding': helpers.random_string()
                         }
                     }
@@ -136,6 +138,7 @@ class TestMQTTRequester(unittest.TestCase):
                 'Requester': {
                     helpers.random_string(): {
                         helpers.random_string(): {
+                            'type': 'main',
                             'secondary_data_binding': helpers.random_string()
                         }
                     }
