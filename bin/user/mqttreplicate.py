@@ -675,8 +675,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         log_mqtt = stn_dict.get('log_mqtt', False)
 
         self.client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
-        self.response_topic = stn_dict.get('response_topic',
-                                           f'{RESPONSE_TOPIC}/{self.client_id}')
+        response_topic = stn_dict.get('response_topic', REQUEST_TOPIC)
+        self.response_topic = f'{response_topic}/{self.client_id}'
         request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
 
         self.main_data_binding = None
