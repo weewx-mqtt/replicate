@@ -264,13 +264,13 @@ class MQTTResponder(weewx.engine.StdService):
         instance_name = service_dict.sections[0]
         self.request_topic = service_dict.get('request_topic', f'{REQUEST_TOPIC}/{instance_name}')
         self.archive_topic = service_dict.get('archive_topic', ARCHIVE_TOPIC)
-        delta = service_dict.get('delta', 60)
+        delta = to_int(service_dict.get('delta', 60))
         host = service_dict.get('host', 'localhost')
-        port = service_dict.get('port', 1883)
-        keepalive = service_dict.get('keepalive', 60)
+        port = to_int(service_dict.get('port', 1883))
+        keepalive = to_int(service_dict.get('keepalive', 60))
         self.subscribe_qos = to_int(service_dict.get('subscribe_qos', 1))
         self.publish_qos = to_int(service_dict.get('publish_qos', 1))
-        self.max_responder_threads = service_dict.get('max_responder_threads', 1)
+        self.max_responder_threads = to_int(service_dict.get('max_responder_threads', 1))
         log_mqtt = to_bool(service_dict.get('log_mqtt', False))
 
         self.data_bindings = {}
@@ -670,8 +670,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.publish_qos = to_int(stn_dict.get('publish_qos', 1))
         self.archive_topic = stn_dict.get('archive_topic', ARCHIVE_TOPIC)
         host = stn_dict.get('host', 'localhost')
-        port = stn_dict.get('port', 1883)
-        keepalive = stn_dict.get('keepalive', 60)
+        port = to_int(stn_dict.get('port', 1883))
+        keepalive = to_int(stn_dict.get('keepalive', 60))
         log_mqtt = stn_dict.get('log_mqtt', False)
 
         self.client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
