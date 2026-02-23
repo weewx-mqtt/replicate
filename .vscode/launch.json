@@ -27,6 +27,24 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Install",
+            "type": "debugpy",
+            "request": "launch",
+            "justMyCode": false,
+            "program": "${workspaceFolder}/../weewx/src/weectl.py",
+            "args": [
+                "extension",
+                "install",
+                "${workspaceFolder}",
+                "--verbosity=3",
+                "--dry-run",
+                "--yes",
+                //"--config", "~/weewx-data/weewx.conf"               
+                //"--config", "${workspaceFolder}/tmp/weewx.conf",
+            ],            
+            "console": "integratedTerminal"
+        },        
+        {
             "name": "request replicate",
             "type": "debugpy",
             "request": "launch",
