@@ -27,7 +27,7 @@ import weewx.engine
 
 from weeutil.weeutil import to_bool, to_int
 
-VERSION = '0.0.1'
+VERSION = "1.0.0-rc03a"
 DRIVER_NAME = 'MQTTRequester'
 DRIVER_VERSION = VERSION
 REQUEST_TOPIC = 'replicate/request'
@@ -248,6 +248,8 @@ class MQTTResponder(weewx.engine.StdService):
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
         self.logger = Logger()
+        self.logger.loginf(f" MQTTReplicate responder version: {VERSION}")
+
         self.thread_id = threading.get_native_id()
         self.client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
 
@@ -662,6 +664,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     ''' The "client" class that data ts replicated to. '''
     def __init__(self, config_dict, _engine):
         self.logger = Logger()
+        self.logger.loginf(f" MQTTReplicate requester version: {VERSION}")
+
         self.thread_id = threading.get_native_id()
         stn_dict = config_dict['MQTTReplicate']['Requester']
 
