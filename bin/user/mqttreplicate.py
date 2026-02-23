@@ -247,11 +247,11 @@ class MQTTResponder(weewx.engine.StdService):
     ''' The "server" that sends the replication data to the requester/client. '''
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
+        self.client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
         self.logger = Logger()
-        self.logger.loginf(f" MQTTReplicate responder version: {VERSION}")
+        self.logger.loginf(f"{self.client_id} version: {VERSION}")
 
         self.thread_id = threading.get_native_id()
-        self.client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
 
         if not to_bool(config_dict.get('MQTTReplicate', {})
                        .get('Responder', {})
@@ -663,8 +663,10 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     # (methods not used) pylint: disable=abstract-method
     ''' The "client" class that data ts replicated to. '''
     def __init__(self, config_dict, _engine):
+        self.client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
+
         self.logger = Logger()
-        self.logger.loginf(f" MQTTReplicate requester version: {VERSION}")
+        self.logger.loginf(f"{self.client_id} version: {VERSION}")
 
         self.thread_id = threading.get_native_id()
         stn_dict = config_dict['MQTTReplicate']['Requester']
@@ -684,7 +686,6 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         keepalive = to_int(stn_dict.get('keepalive', 60))
         log_mqtt = stn_dict.get('log_mqtt', False)
 
-        self.client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
         response_topic = stn_dict.get('response_topic', REQUEST_TOPIC)
         self.response_topic = f'{response_topic}/{self.client_id}'
         request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
