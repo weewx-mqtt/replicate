@@ -45,7 +45,7 @@ if __name__ == '__main__':
                             help="The user directory.",)
         parser.add_argument("--bin-root",
                             help="The location of the WeeWX executables.",)
-        parser.add_argument("----config-file",
+        parser.add_argument("--config-file",
                             help="The WeeWX configuration.",)
 
     def requester_options(parser):
@@ -104,7 +104,12 @@ if __name__ == '__main__':
         config_dict['debug'] = 1
         weeutil.logger.setup('wee-replicate', config_dict)
 
-        del config_dict['Engine']
+        config_dict['Station'] = {
+            'altitude': [0, 'foot'],
+            'latitude': 0.0,
+            'longitude': 0.0,
+        }
+
         config_dict['Engine'] = {}
         config_dict['Engine']['Services'] = {}
 
@@ -169,7 +174,7 @@ if __name__ == '__main__':
 
         if options.command == 'requester':
             run_requester(options, config_dict, weewx_engine)
-        if options.command == 'responder':
+        elif options.command == 'responder':
             import mqttreplicate
             mqtt_responder = mqttreplicate.MQTTResponder(weewx_engine, config_dict)
         else:
