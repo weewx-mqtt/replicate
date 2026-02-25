@@ -61,6 +61,16 @@ if __name__ == '__main__':
 
         return subparser
 
+    def responder_options(parser):
+        ''' Setup parser when running as the responder. '''
+        subparser = parser.add_parser('responder',
+                                      description='ToDo: ',
+                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+
+        common_options(subparser)
+
+        return subparser
+
     def process_locations(options):
         ''' Set the location of WeeWX bits and pieces. '''
         locations = {
@@ -144,6 +154,7 @@ if __name__ == '__main__':
 
         subparsers = arg_parser.add_subparsers(dest='command')
         _ = requester_options(subparsers)
+        _ = responder_options(subparsers)
 
         options = arg_parser.parse_args()
         locations = process_locations(options)
@@ -158,6 +169,9 @@ if __name__ == '__main__':
 
         if options.command == 'requester':
             run_requester(options, config_dict, weewx_engine)
+        if options.command == 'responder':
+            import mqttreplicate
+            mqtt_responder = mqttreplicate.MQTTResponder(weewx_engine, config_dict)
         else:
             arg_parser.print_help()
 
