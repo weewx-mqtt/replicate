@@ -76,6 +76,9 @@ if __name__ == '__main__':
         if locations['bin_root']:
             sys.path.append(locations['bin_root'])
 
+        if locations['user_root']:
+            sys.path.append(str(Path(locations['user_root']).parent))
+
         return locations
 
     def setup_config(config_file):
