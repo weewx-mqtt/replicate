@@ -106,6 +106,35 @@ if __name__ == '__main__':
         end_delay_ts = end_period_ts + archive_delay
         return end_delay_ts - current_time
 
+    def run_requester(options, config_dict, engine):
+        ''' Run as a requester in 'standalone mode'. '''
+        # Need to setup python path before importing - pylint: disable=import-outside-toplevel
+        import weeutil
+        import mqttreplicate
+        # Need to setup python path before importing - pylint: enable=import-outside-toplevel
+
+        archive_delay = options.archive_delay
+        stn_dict = config_dict['MQTTReplicate']['Requester']
+        archive_interval = weeutil.weeutil.to_int(stn_dict.get('archive_interval', 300))
+
+        mqtt_requester = mqttreplicate.MQTTRequester(config_dict, engine)
+
+        for record in mqtt_requester.genStartupRecords(None):
+            print("REC:   ",
+                  weeutil.weeutil.timestamp_to_string(record['dateTime']),
+                  weeutil.weeutil.to_sorted_string(record))
+
+        sleep_amount = calculate_sleep(archive_interval, archive_delay)
+        print(f"Sleeping {int(sleep_amount)} seconds")
+        time.sleep(sleep_amount)
+
+        for record in mqtt_requester.genArchiveRecords(None):
+            print("REC:   ",
+                  weeutil.weeutil.timestamp_to_string(record['dateTime']),
+                  weeutil.weeutil.to_sorted_string(record))
+
+        mqtt_requester.closePort()
+
     def main():
         """ Run it."""
 
@@ -119,8 +148,6 @@ if __name__ == '__main__':
         locations = process_locations(options)
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
         import weewx
-        import weeutil
-        import mqttreplicate
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
 
         config_dict = setup_config(locations['config_file'])
@@ -128,27 +155,7 @@ if __name__ == '__main__':
         engine = weewx.engine.DummyEngine(config_dict)
 
         if options.command == 'requester':
-            archive_delay = options.archive_delay
-            stn_dict = config_dict['MQTTReplicate']['Requester']
-            archive_interval = weeutil.weeutil.to_int(stn_dict.get('archive_interval', 300))
-
-            mqtt_requester = mqttreplicate.MQTTRequester(config_dict, engine)
-
-            for record in mqtt_requester.genStartupRecords(None):
-                print("REC:   ",
-                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
-                      weeutil.weeutil.to_sorted_string(record))
-
-            sleep_amount = calculate_sleep(archive_interval, archive_delay)
-            print(f"Sleeping {int(sleep_amount)} seconds")
-            time.sleep(sleep_amount)
-
-            for record in mqtt_requester.genArchiveRecords(None):
-                print("REC:   ",
-                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
-                      weeutil.weeutil.to_sorted_string(record))
-
-            mqtt_requester.closePort()
+            run_requester(options, config_dict, engine)
         else:
             arg_parser.print_help()
 
