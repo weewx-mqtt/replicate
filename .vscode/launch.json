@@ -27,6 +27,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "requester",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bin/user/run_mqttreplicate.py",
+            "args": [
+                "requester",
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Install",
             "type": "debugpy",
             "request": "launch",
