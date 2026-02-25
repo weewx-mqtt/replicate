@@ -33,6 +33,7 @@
             "program": "bin/user/run_mqttreplicate.py",
             "args": [
                 "requester",
+                "--install-type", "pip",
             ],
             "console": "integratedTerminal"
         },

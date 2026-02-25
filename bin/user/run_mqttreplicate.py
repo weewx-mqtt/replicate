@@ -64,15 +64,14 @@ if __name__ == '__main__':
     def process_locations(options):
         ''' Set the location of WeeWX bits and pieces. '''
         locations = {
-            'weewx_root': str(Path(options.weewx_root if options.weewx_root
-                                   else typical_install_locations[options.install_type]['weewx_root']).expanduser()),
-            'user_root': str(Path(options.user_root if options.user_root
-                                  else typical_install_locations[options.install_type]['user_root']).expanduser()),
-            'bin_root': str(Path(options.bin_root if options.bin_root
-                                 else typical_install_locations[options.install_type]['bin_root']).expanduser()),
-            'config_file': str(Path(options.config_file if options.config_file
-                                    else typical_install_locations[options.install_type]['config_file']).expanduser()),
+            'weewx_root': options.weewx_root if options.weewx_root else typical_install_locations[options.install_type]['weewx_root'],
+            'user_root': options.user_root if options.user_root else typical_install_locations[options.install_type]['user_root'],
+            'bin_root': options.bin_root if options.bin_root else typical_install_locations[options.install_type]['bin_root'],
+            'config_file': options.config_file if options.config_file else typical_install_locations[options.install_type]['config_file'],
         }
+
+        for key, value in locations.items():
+            locations[key] = value if value is None else str(Path(value).expanduser())
 
         if locations['bin_root']:
             sys.path.append(locations['bin_root'])
