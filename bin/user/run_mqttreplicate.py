@@ -87,6 +87,7 @@ if __name__ == '__main__':
         import weewx
         import weecfg
         import weeutil
+        from weeutil import logger  # ToDo: for some reason this is needed
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
         _config_path, config_dict = weecfg.read_config(config_file)
         weewx.debug = 1
@@ -148,14 +149,15 @@ if __name__ == '__main__':
         locations = process_locations(options)
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
         import weewx
+        from weewx import engine  # ToDo: for somereason this is needed
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
 
         config_dict = setup_config(locations['config_file'])
 
-        engine = weewx.engine.DummyEngine(config_dict)
+        weewx_engine = weewx.engine.DummyEngine(config_dict)
 
         if options.command == 'requester':
-            run_requester(options, config_dict, engine)
+            run_requester(options, config_dict, weewx_engine)
         else:
             arg_parser.print_help()
 
