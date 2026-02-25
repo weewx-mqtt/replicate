@@ -7,6 +7,7 @@
 ''' Run mqttreplicate 'standalone'.'''
 import argparse
 import sys
+import time
 
 from pathlib import Path
 
@@ -54,6 +55,10 @@ if __name__ == '__main__':
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
 
         common_options(subparser)
+
+        subparser.add_argument('--archive-delay', type=int, default=30,
+                               help='The simulated archive delay in seconds.')
+
         return subparser
 
     def process_locations(options):
@@ -92,6 +97,13 @@ if __name__ == '__main__':
 
         return config_dict
 
+    def calculate_sleep(archive_interval, archive_delay):
+        ''' Calculate the amount of time to sleep until the start of the next interval. '''
+        current_time = int(time.time() + 0.5)
+        end_period_ts = (int(current_time / archive_interval) + 1) * archive_interval
+        end_delay_ts = end_period_ts + archive_delay
+        return end_delay_ts - current_time
+
     def main():
         """ Run it."""
 
@@ -105,20 +117,35 @@ if __name__ == '__main__':
         locations = process_locations(options)
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
         import weewx
+        import weeutil
         import mqttreplicate
-        # Need to setup python path before importing - pylint: enable
-        # =import-outside-toplevel
+        # Need to setup python path before importing - pylint: enable=import-outside-toplevel
 
         config_dict = setup_config(locations['config_file'])
 
         engine = weewx.engine.DummyEngine(config_dict)
 
         if options.command == 'requester':
+            archive_delay = options.archive_delay
+            stn_dict = config_dict['MQTTReplicate']['Requester']
+            archive_interval = weeutil.weeutil.to_int(stn_dict.get('archive_interval', 300))
+
             mqtt_requester = mqttreplicate.MQTTRequester(config_dict, engine)
-            # try:
-            #     for _packet in mqtt_requester.genLoopPackets():
-            #         pass
-            # except (KeyboardInterrupt, Exception):  # pylint: disable=broad-exception-caught
+
+            for record in mqtt_requester.genStartupRecords(None):
+                print("REC:   ",
+                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
+                      weeutil.weeutil.to_sorted_string(record))
+
+            sleep_amount = calculate_sleep(archive_interval, archive_delay)
+            print(f"Sleeping {int(sleep_amount)} seconds")
+            time.sleep(sleep_amount)
+
+            for record in mqtt_requester.genArchiveRecords(None):
+                print("REC:   ",
+                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
+                      weeutil.weeutil.to_sorted_string(record))
+
             mqtt_requester.closePort()
         else:
             arg_parser.print_help()
