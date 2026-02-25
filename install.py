@@ -177,7 +177,12 @@ class MQTTReplicateInstaller(ExtensionInstaller):
             'description': ' Replicate WeeWX data to a MQTT broker.',
             'author': "Rich Bell",
             'author_email': "bellrichm@gmail.com",
-            'files': [('bin/user', ['bin/user/mqttreplicate.py'])]
+            'files': [('bin/user',
+                       ['bin/user/mqttreplicate.py',
+                        'bin/user/run_mqttreplicate.py'
+                        ]
+                       )
+                      ]
         }
 
         mqttreplicate_dict = configobj.ConfigObj(StringIO(MQTTREPLICATE_CONFIG))
