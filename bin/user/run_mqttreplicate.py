@@ -96,8 +96,7 @@ if __name__ == '__main__':
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
         import weewx
         import weecfg
-        import weeutil
-        from weeutil import logger  # ToDo: for some reason this is needed
+        import weeutil.logger
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
         _config_path, config_dict = weecfg.read_config(config_file)
         weewx.debug = 1
@@ -151,6 +150,14 @@ if __name__ == '__main__':
 
         mqtt_requester.closePort()
 
+    def run_responder(config_dict, engine):
+        ''' Run as a responder in 'standalone mode'. '''
+        config_dict['MQTTReplicate']['Responder']['enable'] = True
+        # Need to setup python path before importing - pylint: disable=import-outside-toplevel
+        import mqttreplicate
+        # Need to setup python path before importing - pylint: enable=import-outside-toplevel
+        mqttreplicate.MQTTResponder(engine, config_dict)
+
     def main():
         """ Run it."""
 
@@ -164,20 +171,17 @@ if __name__ == '__main__':
         options = arg_parser.parse_args()
         locations = process_locations(options)
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
-        import weewx
-        from weewx import engine  # ToDo: for somereason this is needed
+        import weewx.engine
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
 
         config_dict = setup_config(locations['config_file'])
 
-        weewx_engine = weewx.engine.DummyEngine(config_dict)
+        engine = weewx.engine.DummyEngine(config_dict)
 
         if options.command == 'requester':
-            run_requester(options, config_dict, weewx_engine)
+            run_requester(options, config_dict, engine)
         elif options.command == 'responder':
-            config_dict['MQTTReplicate']['Responder']['enable'] = True
-            import mqttreplicate
-            mqtt_responder = mqttreplicate.MQTTResponder(weewx_engine, config_dict)
+            run_responder(config_dict, engine)
         else:
             arg_parser.print_help()
 
