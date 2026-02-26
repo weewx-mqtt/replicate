@@ -33,7 +33,7 @@
             "program": "bin/user/run_mqttreplicate.py",
             "args": [
                 "requester",
-                "--config-file", "~/weewx-data/mqttreplicate.conf",
+                "--config-file", "tmp/mqttreplicate.conf",
                 "--install-type", "git",
             ],
             "console": "integratedTerminal"
@@ -45,6 +45,7 @@
             "program": "bin/user/run_mqttreplicate.py",
             "args": [
                 "responder",
+                "--config-file", "tmp/mqttreplicate.conf",
                 "--install-type", "git",
             ],
             "console": "integratedTerminal"

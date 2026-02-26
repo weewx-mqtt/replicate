@@ -175,6 +175,7 @@ if __name__ == '__main__':
         if options.command == 'requester':
             run_requester(options, config_dict, weewx_engine)
         elif options.command == 'responder':
+            config_dict['MQTTReplicate']['Responder']['enable'] = True
             import mqttreplicate
             mqtt_responder = mqttreplicate.MQTTResponder(weewx_engine, config_dict)
         else:
