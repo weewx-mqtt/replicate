@@ -45,7 +45,7 @@ if __name__ == '__main__':
                             help="The user directory.",)
         parser.add_argument("--bin-root",
                             help="The location of the WeeWX executables.",)
-        parser.add_argument("----config-file",
+        parser.add_argument("--config-file",
                             help="The WeeWX configuration.",)
 
     def requester_options(parser):
@@ -58,6 +58,16 @@ if __name__ == '__main__':
 
         subparser.add_argument('--archive-delay', type=int, default=30,
                                help='The simulated archive delay in seconds.')
+
+        return subparser
+
+    def responder_options(parser):
+        ''' Setup parser when running as the responder. '''
+        subparser = parser.add_parser('responder',
+                                      description='ToDo: ',
+                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+
+        common_options(subparser)
 
         return subparser
 
@@ -86,14 +96,19 @@ if __name__ == '__main__':
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
         import weewx
         import weecfg
-        import weeutil
+        import weeutil.logger
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
         _config_path, config_dict = weecfg.read_config(config_file)
         weewx.debug = 1
         config_dict['debug'] = 1
         weeutil.logger.setup('wee-replicate', config_dict)
 
-        del config_dict['Engine']
+        config_dict['Station'] = {
+            'altitude': [0, 'foot'],
+            'latitude': 0.0,
+            'longitude': 0.0,
+        }
+
         config_dict['Engine'] = {}
         config_dict['Engine']['Services'] = {}
 
@@ -106,6 +121,43 @@ if __name__ == '__main__':
         end_delay_ts = end_period_ts + archive_delay
         return end_delay_ts - current_time
 
+    def run_requester(options, config_dict, engine):
+        ''' Run as a requester in 'standalone mode'. '''
+        # Need to setup python path before importing - pylint: disable=import-outside-toplevel
+        import weeutil
+        import mqttreplicate
+        # Need to setup python path before importing - pylint: enable=import-outside-toplevel
+
+        archive_delay = options.archive_delay
+        stn_dict = config_dict['MQTTReplicate']['Requester']
+        archive_interval = weeutil.weeutil.to_int(stn_dict.get('archive_interval', 300))
+
+        mqtt_requester = mqttreplicate.MQTTRequester(config_dict, engine)
+
+        for record in mqtt_requester.genStartupRecords(None):
+            print("REC:   ",
+                  weeutil.weeutil.timestamp_to_string(record['dateTime']),
+                  weeutil.weeutil.to_sorted_string(record))
+
+        sleep_amount = calculate_sleep(archive_interval, archive_delay)
+        print(f"Sleeping {int(sleep_amount)} seconds")
+        time.sleep(sleep_amount)
+
+        for record in mqtt_requester.genArchiveRecords(None):
+            print("REC:   ",
+                  weeutil.weeutil.timestamp_to_string(record['dateTime']),
+                  weeutil.weeutil.to_sorted_string(record))
+
+        mqtt_requester.closePort()
+
+    def run_responder(config_dict, engine):
+        ''' Run as a responder in 'standalone mode'. '''
+        config_dict['MQTTReplicate']['Responder']['enable'] = True
+        # Need to setup python path before importing - pylint: disable=import-outside-toplevel
+        import mqttreplicate
+        # Need to setup python path before importing - pylint: enable=import-outside-toplevel
+        mqttreplicate.MQTTResponder(engine, config_dict)
+
     def main():
         """ Run it."""
 
@@ -114,13 +166,12 @@ if __name__ == '__main__':
 
         subparsers = arg_parser.add_subparsers(dest='command')
         _ = requester_options(subparsers)
+        _ = responder_options(subparsers)
 
         options = arg_parser.parse_args()
         locations = process_locations(options)
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
-        import weewx
-        import weeutil
-        import mqttreplicate
+        import weewx.engine
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
 
         config_dict = setup_config(locations['config_file'])
@@ -128,27 +179,9 @@ if __name__ == '__main__':
         engine = weewx.engine.DummyEngine(config_dict)
 
         if options.command == 'requester':
-            archive_delay = options.archive_delay
-            stn_dict = config_dict['MQTTReplicate']['Requester']
-            archive_interval = weeutil.weeutil.to_int(stn_dict.get('archive_interval', 300))
-
-            mqtt_requester = mqttreplicate.MQTTRequester(config_dict, engine)
-
-            for record in mqtt_requester.genStartupRecords(None):
-                print("REC:   ",
-                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
-                      weeutil.weeutil.to_sorted_string(record))
-
-            sleep_amount = calculate_sleep(archive_interval, archive_delay)
-            print(f"Sleeping {int(sleep_amount)} seconds")
-            time.sleep(sleep_amount)
-
-            for record in mqtt_requester.genArchiveRecords(None):
-                print("REC:   ",
-                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
-                      weeutil.weeutil.to_sorted_string(record))
-
-            mqtt_requester.closePort()
+            run_requester(options, config_dict, engine)
+        elif options.command == 'responder':
+            run_responder(config_dict, engine)
         else:
             arg_parser.print_help()
 
