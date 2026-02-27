@@ -385,16 +385,12 @@ class MQTTResponder(weewx.engine.StdService):
         properties.UserProperty = [
             ('data_binding', data_binding_name)
         ]
-        self.logger.logdbg(f'Publishing topic {self.archive_topic} and data binding: {data_binding_name}, '
-                           f'with payload: {payload}.')
-        mqtt_message_info = self.mqtt_client.publish(self.archive_topic,
-                                                     payload,
-                                                     qos,
-                                                     False,
-                                                     properties=properties)
-        self.logger.logdbg(f"Published topic {self.archive_topic}, binding {data_binding_name}, "
-                           f"and qos {qos} returned mid {mqtt_message_info.mid}.")
-
+        self.logger.logdbg(f'Publishing on topic {self.archive_topic}, properties {properties}, payload: {payload}.')
+        self.mqtt_client.publish(self.archive_topic,
+                                 payload,
+                                 qos,
+                                 False,
+                                 properties=properties)
 class MQTTResponderLoopThread(threading.Thread):
     ''' The MQTT 'loop' thread. '''
     def __init__(self,
