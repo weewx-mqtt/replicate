@@ -44,15 +44,15 @@ class Logger:  # pragma: no cover
 
     def logdbg(self, msg):
         """ log debug messages """
-        self.log.debug("%s %s", threading.get_native_id(), msg)
+        self.log.debug("(%s) %s", threading.get_native_id(), msg)
 
     def loginf(self, msg):
         """ log informational messages """
-        self.log.info("%s %s", threading.get_native_id(), msg)
+        self.log.info("(%s) %s", threading.get_native_id(), msg)
 
     def logerr(self, msg):
         """ log error messages """
-        self.log.error("%s %s", threading.get_native_id(), msg)
+        self.log.error("(%s) %s", threading.get_native_id(), msg)
 
 class MQTTClient(abc.ABC):
     ''' Abstract class that wraps paho mqtt to protect from breaking changes. '''
@@ -248,6 +248,7 @@ class MQTTResponder(weewx.engine.StdService):
         self.client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
         self.logger = Logger()
         self.logger.loginf(f"version: {VERSION}")
+        self.logger.logdbg(f"Responder main MQTT client is: {self.client_id}")
 
         self.thread_id = threading.get_native_id()
 
@@ -258,6 +259,11 @@ class MQTTResponder(weewx.engine.StdService):
             return
 
         service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
+        exclude_keys = ['password']
+        sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
+        self.logger.logdbg(f"sanitized configuration removed {exclude_keys}")
+        self.logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
+
         if len(service_dict.sections) > 1:
             raise AttributeError("Only one instance is allowed.")
 
@@ -288,6 +294,8 @@ class MQTTResponder(weewx.engine.StdService):
                 if self.main_data_binding is not None:
                     raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
                 self.main_data_binding = data_binding_key
+
+        self.logger.logdbg(f"data bindings are: {self.data_bindings}")
 
         if self.main_data_binding is None:
             raise ValueError("No 'main' data bindings found")
@@ -428,6 +436,7 @@ class MQTTResponderLoopThread(threading.Thread):
     def run(self):
         self.thread_id = threading.get_native_id()
         threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
+        self.logger.loginf(f"MQTTResponderLoopThread, {threading.current_thread().name}, is running.")
         self.mqtt_client.loop_forever()
 
     def _on_connect(self, _userdata):
@@ -443,14 +452,16 @@ class MQTTResponderLoopThread(threading.Thread):
     def _on_message(self, _userdata, msg):
         try:
             self.logger.logdbg(f"Request has, topic: {msg.topic}, "
-                               f"properties: {msg.properties}"
+                               f"properties: {msg.properties} "
                                f"QOS: {int(msg.qos)}, "
                                f"retain: {msg.retain}, "
-                               f"payload: {msg.payload}, ")
+                               f"payload: {msg.payload} ")
 
             if not hasattr(msg.properties, 'UserProperty'):
-                self.logger.logerr('Request has no "UserProperty", '
-                                   f'Skipping topic: {msg.topic} payload: {msg.payload}')
+                self.logger.logerr(f'Request with topic skipped: {msg.topic} '
+                                   f'payload: {msg.payload} '
+                                   'has no UserProperty')
+
                 return
 
             user_property = msg.properties.UserProperty
@@ -461,18 +472,17 @@ class MQTTResponderLoopThread(threading.Thread):
                     break
 
             if not data_binding:
-                self.logger.logerr('Request has no "data_binding" '
-                                   f'UserProperty: {msg.properties.UserProperty}')
                 self.logger.logerr(f'Request with topic skipped: {msg.topic} '
                                    f'UserProperty: {msg.properties.UserProperty} '
-                                   f'payload: {msg.payload}')
+                                   f'payload: {msg.payload} '
+                                   'has no data_binding')
                 return
 
             if data_binding not in self.data_bindings:
-                self.logger.logerr(f'Request has unknown data_binding {data_binding}')
                 self.logger.logerr(f'Request with topic skipped: {msg.topic} '
                                    f'UserProperty: {msg.properties.UserProperty} '
-                                   f'payload: {msg.payload}')
+                                   f'payload: {msg.payload} '
+                                   ' has unknown data_binding {data_binding}')
                 return
 
             response_topic = msg.properties.ResponseTopic
@@ -520,6 +530,9 @@ class MQTTResponderThread(threading.Thread):
         self.keepalive = keepalive
         self.publish_qos = publish_qos
         self.client_id = 'MQTTReplicateRespondThread-' + str(random.randint(1000, 9999))
+
+        self.logger.logdbg(f"Responder catchup MQTT client is: {self.client_id}")
+
         self.data_bindings = {}
 
         service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
@@ -552,6 +565,7 @@ class MQTTResponderThread(threading.Thread):
     def run(self):
         ''' Publish the data. '''
         threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
+        self.logger.loginf(f"MQTTResponderThread, {threading.current_thread().name}, is running.")
         for _data_binding_key, data_binding in self.data_bindings.items():
             data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
 
@@ -572,13 +586,12 @@ class MQTTResponderThread(threading.Thread):
                             .genBatchRecords(data['start_timestamp']):
                         record_count += 1
                         payload = json.dumps(record)
-                        self.logger.logdbg(f'Responding/publishing payload: {payload}.')
+                        self.logger.logdbg(f"Responding/publishing on topic {data['topic']}, properties {data['properties']}, payload: {payload}.")
                         mqtt_message_info = self.mqtt_client.publish(data['topic'],
                                                                      payload,
                                                                      self.publish_qos,
                                                                      False,
                                                                      properties=data['properties'])
-                        self.logger.logdbg(f"returned {mqtt_message_info.mid} ")
 
                         # Add the message 'mid' to the 'mids collection', self.mids.
                         # This collection will be monitored (in _on_publish) to know when it safe to disconnect.
@@ -614,16 +627,17 @@ class MQTTResponderThread(threading.Thread):
 
     def _on_publish(self, _userdata, mid):
         if mid in self.mids:
-            time_stamp = self.mids[mid]['time_stamp']
-            qos = self.mids[mid]['qos']
+            # time_stamp = self.mids[mid]['time_stamp']
+            # qos = self.mids[mid]['qos']
             del self.mids[mid]
         # Each response that is published adds its 'mid' to the 'mid collection', self.mids.
         # If all messages have been 'published', we can safely disconnect from the broker.
         if len(self.mids) > 0:
-            self.logger.logdbg(f"Published at (int(time.time())): {time_stamp} {mid} {qos}")
-            self.logger.logdbg("Inflight at ({int(time.time())}): mids {self.mids}")
+            # self.logger.logdbg(f"Published at (int(time.time())): {time_stamp} {mid} {qos}")
+            # self.logger.logdbg("Inflight at ({int(time.time())}): mids {self.mids}")
+            pass
         else:
-            # ToDo: add a logdbg here
+            self.logger.logdbg("All catchup data has been published.")
             self.mqtt_client.disconnect()
 
     def _on_log(self, _client, _userdata, level, msg):
@@ -641,9 +655,14 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
         self.logger = Logger()
         self.logger.loginf(f"version: {VERSION}")
+        self.logger.logdbg(f"Requester main MQTT client is: {self.client_id}")
 
         self.thread_id = threading.get_native_id()
         stn_dict = config_dict['MQTTReplicate']['Requester']
+        exclude_keys = ['password']
+        sanitized_service_dict = {k: stn_dict[k] for k in set(list(stn_dict.keys())) - set(exclude_keys)}
+        self.logger.logdbg(f"sanitized configuration removed {exclude_keys}")
+        self.logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
 
         self.the_time = time.time()
         self.loop_interval = float(stn_dict.get('loop_interval', 2.5))
@@ -866,6 +885,7 @@ class MQTTRequesterLoopThread(threading.Thread):
     def run(self):
         self.thread_id = threading.get_native_id()
         threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
+        self.logger.loginf(f"MQTTRequesterLoopThread, {threading.current_thread().name}, is running.")
         self.mqtt_client.loop_forever()
 
     def _on_connect(self, _userdata):
