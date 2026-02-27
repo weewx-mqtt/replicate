@@ -69,33 +69,6 @@
             "console": "integratedTerminal"
         },        
         {
-            "name": "request replicate",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": [
-                "request",
-                "--conf",
-                "~/weewx-data/run/weewx.conf",
-                //"--timestamp", "0",
-            ]
-        },
-        {
-            "name": "respond replicate",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": [
-                "respond",
-                "--conf",
-                "~/weewx-data/run/weewx.conf",
-            ]
-        },
-        {
             "name": "weewxd: Full install",
             "type": "debugpy",
             "request": "launch",
