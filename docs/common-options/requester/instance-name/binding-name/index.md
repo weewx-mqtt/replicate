@@ -10,6 +10,11 @@ nav_order: 1
 This is a primary/remote binding name, and must match a name in the same `[[[instance-name]]]` section of the `[[Responder]]`.
 A replicating instance consists of a primary (source) and secondary (target) databases to replicate.
 
+### initialize
+
+Controls if a new database is created when the database specified by the `secondary_binding` does not exists.
+Default value is `true`.
+
 ### type
 
 The main data binding is the binding that WeeWX uses to store the archive data.
