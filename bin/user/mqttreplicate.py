@@ -928,9 +928,8 @@ class MQTTRequesterLoopThread(threading.Thread):
                 return
 
             if data_binding not in self.data_bindings:
-                self.logger.logerr(f'Response has unknown data_binding {data_binding}')
                 self.logger.logerr(f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
-                                   'has unknow data_binding {data_binding}')
+                                   f'has unknow data_binding {data_binding}')
                 return
 
             record = json.loads(msg.payload.decode('utf-8'))
