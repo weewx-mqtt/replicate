@@ -38,6 +38,8 @@ if __name__ == '__main__':
         parser.add_argument("--install-type", choices=["pip", "package", "git"],
                             help="The type of install used.",
                             default="package")
+        parser.add_argument("--debug", choices=["on", "off"], default="on",
+                            help="Turn WeeWX debug on/off.",)
 
         parser.add_argument("--weewx-root",
                             help="The WeeWX root directory.",)
@@ -91,15 +93,16 @@ if __name__ == '__main__':
 
         return locations
 
-    def setup_config(config_file):
+    def setup_config(config_file, debug):
         ''' Setup the config file. '''
         # Need to setup python path before importing - pylint: disable=import-outside-toplevel
-        import weewx
         import weecfg
         import weeutil.logger
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
+
         _config_path, config_dict = weecfg.read_config(config_file)
-        weewx.debug = 1
+
+        config_dict['debug'] = 1 if debug == 'on' else 0
         config_dict['debug'] = 1
         weeutil.logger.setup('wee-replicate', config_dict)
 
@@ -174,7 +177,7 @@ if __name__ == '__main__':
         import weewx.engine
         # Need to setup python path before importing - pylint: enable=import-outside-toplevel
 
-        config_dict = setup_config(locations['config_file'])
+        config_dict = setup_config(locations['config_file'], options.debug)
 
         engine = weewx.engine.DummyEngine(config_dict)
 

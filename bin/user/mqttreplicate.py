@@ -787,7 +787,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
             except queue.Empty:
                 tries += 1
                 if tries >= max_tries:
-                    self.logger.loginf(f"After {tries} wait of {wait_before_retry}, "
+                    self.logger.logdbg(f"After {tries} wait of {wait_before_retry}, "
                                        "archive record queue is empty.")
                     break
 
