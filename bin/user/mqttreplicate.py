@@ -709,17 +709,11 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                         raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
                     self.main_data_binding = data_binding_key
 
+        self.logger.logdbg(f"data bindings are: {self.data_bindings}")
+
         if self.main_data_binding is None:
             raise ValueError("No 'main' data bindings found")
-
-        if stn_dict.get('command_line'):
-            self.data_bindings[self.main_data_binding]['type'] = 'secondary'
-            self.main_data_binding = None
-            instance_name = stn_dict.sections[0]
-            database_name = stn_dict[instance_name].sections[0]
-            timestamp = stn_dict[instance_name][database_name].get('timestamp')
-            if timestamp:
-                next(iter(self.data_bindings.values()))['last_good_timestamp'] = timestamp
+        self.logger.logdbg(f"main data bindings is: {self.main_data_binding}")
 
         self.mqtt_client = MQTTClient.get_client(self.logger, self.client_id, None)
 
@@ -739,7 +733,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                                                    keepalive)
         self.loop_thread.start()
 
-        self.logger.loginf("Waiting for subscriptions to be set.")
+        self.logger.logdbg("Waiting for subscriptions to be set.")
         while not self.loop_thread.subscribed:
             time.sleep(1)
 
@@ -821,16 +815,13 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
             ('data_binding', data_binding_name)
         ]
 
-        mqtt_message_info = self.mqtt_client.publish(topic,
-                                                     last_ts,
-                                                     qos,
-                                                     False,
-                                                     properties=properties)
-        self.logger.loginf(f"Request 'catchup' with timestamp ({last_ts}): "
-                           f"topic ({topic}): "
-                           f"data_binding ({data_binding_name}): "
-                           f"properties ({properties}): "
-                           f"{mqtt_message_info.mid} {qos}")
+        self.logger.loginf(f"Request 'catchup' on topic {topic}, properties {properties}, payload/timestamp: {last_ts}.")
+
+        self.mqtt_client.publish(topic,
+                                 last_ts,
+                                 qos,
+                                 False,
+                                 properties=properties)
 
 class MQTTRequesterLoopThread(threading.Thread):
     ''' The MQTT 'loop' thread. '''
@@ -921,8 +912,7 @@ class MQTTRequesterLoopThread(threading.Thread):
                                f"payload: {msg.payload}, ")
 
             if not hasattr(msg.properties, 'UserProperty'):
-                self.logger.logerr('Response has no "UserProperty", '
-                                   f'Skipping topic: {msg.topic} payload: {msg.payload}')
+                self.logger.logerr(f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty"')
                 return
 
             user_property = msg.properties.UserProperty
@@ -933,13 +923,14 @@ class MQTTRequesterLoopThread(threading.Thread):
                     break
 
             if not data_binding:
-                self.logger.logerr('Response has no "data_binding" UserProperty')
-                self.logger.logerr(f'Response with topic skipped: {msg.topic} payload: {msg.payload}')
+                self.logger.logerr(f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
+                                   'has no "data_binding" UserProperty')
                 return
 
             if data_binding not in self.data_bindings:
                 self.logger.logerr(f'Response has unknown data_binding {data_binding}')
-                self.logger.logerr(f'Response with topic skipped: {msg.topic} payload: {msg.payload}')
+                self.logger.logerr(f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
+                                   'has unknow data_binding {data_binding}')
                 return
 
             record = json.loads(msg.payload.decode('utf-8'))
