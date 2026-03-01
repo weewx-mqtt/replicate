@@ -89,6 +89,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             'type': 'main',
                                             'manager_dict': manager_dict,
                                             'last_good_timestamp': last_good_timestamp,
+                                            'direct_update': False,
                                             'dbmanager': None,
                                         }
                                     }

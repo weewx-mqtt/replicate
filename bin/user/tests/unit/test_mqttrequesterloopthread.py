@@ -33,6 +33,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                  mock_client,
                                                                  None,
                                                                  True,
+                                                                 True,
                                                                  None,
                                                                  None,
                                                                  None,
@@ -60,6 +61,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                  mock_client,
                                                                  None,
                                                                  None,
+                                                                 True,
                                                                  None,
                                                                  None,
                                                                  None,
@@ -92,6 +94,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                      mock_client,
                                                                      None,
                                                                      None,
+                                                                     True,
                                                                      None,
                                                                      data_bindings,
                                                                      None,
@@ -127,6 +130,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                      mock_client,
                                                                      None,
                                                                      None,
+                                                                     True,
                                                                      None,
                                                                      data_bindings,
                                                                      None,
@@ -156,6 +160,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                  mock_client,
                                                                  None,
                                                                  None,
+                                                                 True,
                                                                  None,
                                                                  data_bindings,
                                                                  None,
@@ -193,6 +198,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                      mock_client,
                                                                      None,
                                                                      None,
+                                                                     True,
                                                                      None,
                                                                      data_bindings,
                                                                      None,
@@ -229,6 +235,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
             instance_name: {
                 'dbmanager': mock_db_manager,
                 'type': 'main',
+                'direct_update': False,
             }
         }
 
@@ -243,6 +250,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                      mock_client,
                                                                      None,
                                                                      None,
+                                                                     True,
                                                                      mock_data_queue,
                                                                      data_bindings,
                                                                      None,
