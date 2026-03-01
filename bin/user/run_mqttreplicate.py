@@ -103,7 +103,6 @@ if __name__ == '__main__':
         _config_path, config_dict = weecfg.read_config(config_file)
 
         config_dict['debug'] = 1 if debug == 'on' else 0
-        config_dict['debug'] = 1
         weeutil.logger.setup('wee-replicate', config_dict)
 
         config_dict['Station'] = {

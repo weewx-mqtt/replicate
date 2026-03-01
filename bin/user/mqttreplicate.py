@@ -704,6 +704,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                 if self.data_bindings[data_binding_key]['last_good_timestamp'] is None:
                     self.data_bindings[data_binding_key]['last_good_timestamp'] = 0
 
+                self.data_bindings[data_binding_key]['direct_update'] = binding.get('direct_update', False)
+
                 self.data_bindings[data_binding_key]['dbmanager'] = None
                 if self.data_bindings[data_binding_key]['type'] == 'main':
                     if self.main_data_binding is not None:
@@ -934,7 +936,7 @@ class MQTTRequesterLoopThread(threading.Thread):
                 return
 
             record = json.loads(msg.payload.decode('utf-8'))
-            if self.data_bindings[data_binding]['type'] == 'main':
+            if self.data_bindings[data_binding]['type'] == 'main' and not self.data_bindings[data_binding]['direct_update']:
                 # For all records from the 'main' db, create an archive_record
                 self.data_queue.put((record['dateTime'], record))
             else:

@@ -10,6 +10,12 @@ nav_order: 1
 This is a primary/remote binding name, and must match a name in the same `[[[instance-name]]]` section of the `[[Responder]]`.
 A replicating instance consists of a primary (source) and secondary (target) databases to replicate.
 
+### direct_update
+
+Controls if data for the `main` binding updates the database directly or is used to create an archive record.
+Might be useful when running in 'standalone' mode.
+Default is `False`.
+
 ### initialize
 
 Controls if a new database is created when the database specified by the `secondary_binding` does not exists.
