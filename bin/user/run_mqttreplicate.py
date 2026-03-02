@@ -139,6 +139,7 @@ if __name__ == '__main__':
         print("Calling genStartupRecords")
         record_count = 0
         prev_datetime = 0
+        start_time = time.time()
         for record in mqtt_requester.genStartupRecords(None):
             record_count += 1
             time_delta = record['dateTime'] - prev_datetime
@@ -151,7 +152,8 @@ if __name__ == '__main__':
                       # weeutil.weeutil.to_sorted_string(record)
                       )
 
-        print(f"total record count is {record_count})")
+        run_time = time.time() - start_time
+        print(f"total record count is {record_count} in {run_time} seconds ({run_time/60} minutes).")
 
         sleep_amount = calculate_sleep(archive_interval, archive_delay)
         print(f"Sleeping {int(sleep_amount)} seconds")
