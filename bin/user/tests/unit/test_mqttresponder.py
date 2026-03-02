@@ -72,7 +72,7 @@ class TestMQTTResponder(unittest.TestCase):
                                                                                       False,
                                                                                       mock_queue(),
                                                                                       1000,
-                                                                                      5,
+                                                                                      1,
                                                                                       60,
                                                                                       config,
                                                                                       False,
