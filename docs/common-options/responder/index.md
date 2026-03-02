@@ -72,7 +72,7 @@ The default value is 1000.
 
 When publishing 'catchup' data, it may be published fast enough that the broker is 'overloaded'
 The responder will sleep for `throttle_sleep` seconds for every `throttle_count` records that are published.
-The default value is 5.
+The default value is 1 (second).
 
 ### max_responder_threads
 

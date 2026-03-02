@@ -279,7 +279,7 @@ class MQTTResponder(weewx.engine.StdService):
         self.archive_topic = service_dict.get('archive_topic', ARCHIVE_TOPIC)
         delta = to_int(service_dict.get('delta', 60))
         throttle_count = to_int(service_dict.get('throttle_count', 1000))
-        throttle_sleep = to_int(service_dict.get('throttle_sleep', 5))
+        throttle_sleep = to_int(service_dict.get('throttle_sleep', 1))
         host = service_dict.get('host', 'localhost')
         port = to_int(service_dict.get('port', 1883))
         keepalive = to_int(service_dict.get('keepalive', 60))
