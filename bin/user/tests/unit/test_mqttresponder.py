@@ -71,6 +71,8 @@ class TestMQTTResponder(unittest.TestCase):
                                         mock_responder_thread.assert_called_once_with(mock_logger(),
                                                                                       False,
                                                                                       mock_queue(),
+                                                                                      1000,
+                                                                                      5,
                                                                                       60,
                                                                                       config,
                                                                                       False,

@@ -278,6 +278,8 @@ class MQTTResponder(weewx.engine.StdService):
         self.request_topic = service_dict.get('request_topic', f'{REQUEST_TOPIC}/{instance_name}')
         self.archive_topic = service_dict.get('archive_topic', ARCHIVE_TOPIC)
         delta = to_int(service_dict.get('delta', 60))
+        throttle_count = to_int(service_dict.get('throttle_count', 1000))
+        throttle_sleep = to_int(service_dict.get('throttle_sleep', 5))
         host = service_dict.get('host', 'localhost')
         port = to_int(service_dict.get('port', 1883))
         keepalive = to_int(service_dict.get('keepalive', 60))
@@ -316,6 +318,8 @@ class MQTTResponder(weewx.engine.StdService):
             thread = MQTTResponderThread(self.logger,
                                          self.thread_error,
                                          self.data_queue,
+                                         throttle_count,
+                                         throttle_sleep,
                                          delta,
                                          config_dict,
                                          False,
@@ -515,6 +519,8 @@ class MQTTResponderThread(threading.Thread):
                  logger,
                  thread_error,
                  data_queue,
+                 throttle_count,
+                 throttle_sleep,
                  delta,
                  config_dict,
                  log_mqtt,
@@ -526,6 +532,8 @@ class MQTTResponderThread(threading.Thread):
         self.thread_id = threading.get_native_id()
         self.logger = logger
         self.thread_error = thread_error
+        self.throttle_count = throttle_count
+        self.throttle_sleep = throttle_sleep
         self.data_queue = data_queue
         self.config_dict = config_dict
         self.host = host
@@ -618,9 +626,9 @@ class MQTTResponderThread(threading.Thread):
                         if record_count % 1000 == 0:
                             self.logger.loginf(f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
                                                "have been published.")
-                            # ToDo: Temp hack to slow down publishing - hope to make it more robust when publishing large 'catchup'
-                            # At least when qos=0, records seem to drop. Have not tested qos>0
-                            # time.sleep(5)
+
+                        if record_count % self.throttle_count == 0:
+                            time.sleep(self.throttle_sleep)
 
                     self.logger.loginf(f'Responding/publishing topic {data["topic"]} '
                                        f'data_binding {data["data_binding"]} '
@@ -803,6 +811,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     def gen_replica_record(self, max_tries, wait_before_retry):
         ''' Generator to return the records that are in the queue. '''
         record_count = 0
+        record = {'dateTime': 0}
         tries = 0
         while True:
             try:

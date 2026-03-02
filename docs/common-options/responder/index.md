@@ -62,6 +62,18 @@ When retrieving secondary data to be published, replicated the largest differenc
 Some extensions do not force the time to an archive interval, so the WeeWX default value of 'None' does not always work.
 The default value is 60.
 
+### throttle_count
+
+When publishing 'catchup' data, it may be published fast enough that the broker is 'overloaded'
+The responder will sleep for `throttle_sleep` seconds for every `throttle_count` records that are published.
+The default value is 1000.
+
+### throttle_sleep
+
+When publishing 'catchup' data, it may be published fast enough that the broker is 'overloaded'
+The responder will sleep for `throttle_sleep` seconds for every `throttle_count` records that are published.
+The default value is 5.
+
 ### max_responder_threads
 
 The maximum number of responser threads to create.
