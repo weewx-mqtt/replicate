@@ -26,7 +26,7 @@ class PriorityQueueStub:
     def get(self, _block, _timeout):
         self.get_call_count += 1
         if self.get_call_count == 2:
-            return (helpers.random_string(), helpers.random_string())
+            return ({'dateTime': random.randint(0, 9999)}, {'dateTime': random.randint(10000, 19999)})
 
         raise queue.Empty
 
@@ -129,7 +129,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().loginf.call_count, 2)
+                                        self.assertEqual(mock_logger().loginf.call_count, 3)
 
     def test_gen_archive_records(self):
         mock_engine = mock.Mock()
@@ -166,7 +166,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().loginf.call_count, 2)
+                                        self.assertEqual(mock_logger().loginf.call_count, 3)
 
 if __name__ == '__main__':
     helpers.run_tests()
