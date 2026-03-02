@@ -33,9 +33,9 @@
             "program": "bin/user/run_mqttreplicate.py",
             "args": [
                 "requester",
-                "--config-file", "tmp/mqttreplicate.conf",
+                "--config-file", "tmp/mqttreplicate.requester.conf",
                 "--install-type", "git",
-                "--debug", "off",
+                //"--debug", "off",
             ],
             "console": "integratedTerminal"
         },
@@ -47,7 +47,7 @@
             "program": "bin/user/run_mqttreplicate.py",
             "args": [
                 "responder",
-                "--config-file", "tmp/mqttreplicate.conf",
+                "--config-file", "tmp/mqttreplicate.responder.conf",
                 "--install-type", "git",
                 "--debug", "off",
             ],

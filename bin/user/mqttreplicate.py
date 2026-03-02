@@ -808,6 +808,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
             try:
                 record = self.data_queue.get(True, wait_before_retry)[1]
                 record_count += 1
+                if record_count % 1000 == 0:
+                    self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
                 tries = 0
                 yield record
             except queue.Empty:
@@ -816,6 +818,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                                    f"record count: {record_count}"
                                    )
                 if tries >= max_tries:
+                    self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
                     break
 
     def genLoopPackets(self):
@@ -935,11 +938,15 @@ class MQTTRequesterLoopThread(threading.Thread):
     def _on_message(self, _userdata, msg):
         # ToDo: Fine tune exception handling
         try:
-            self.logger.logdbg(f"Response has topic: {msg.topic}, "
-                               f"properties: {msg.properties}"
-                               f"QOS: {int(msg.qos)}, "
-                               f"retain: {msg.retain}, "
-                               f"payload: {msg.payload}, ")
+            record = json.loads(msg.payload.decode('utf-8'))
+
+            # self.logger.logdbg(f"Response has topic: {msg.topic}, "
+            #                    f"properties: {msg.properties}"
+            #                    f"QOS: {int(msg.qos)}, "
+            #                    f"retain: {msg.retain}, "
+            #                    f"payload: {record['dateTime']}, "
+            #                    f"payload: {msg.payload}, ",
+            #                    )
 
             if not hasattr(msg.properties, 'UserProperty'):
                 self.logger.logerr(f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty"')
@@ -962,7 +969,6 @@ class MQTTRequesterLoopThread(threading.Thread):
                                    f'has unknow data_binding {data_binding}')
                 return
 
-            record = json.loads(msg.payload.decode('utf-8'))
             if self.data_bindings[data_binding]['type'] == 'main':
                 # For all records from the 'main' db, create an archive_record
                 self.data_queue.put((record['dateTime'], record))
