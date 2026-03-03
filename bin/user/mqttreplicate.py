@@ -280,6 +280,7 @@ class MQTTResponder(weewx.engine.StdService):
         delta = to_int(service_dict.get('delta', 60))
         throttle_count = to_int(service_dict.get('throttle_count', 1000))
         throttle_sleep = to_int(service_dict.get('throttle_sleep', 1))
+        log_msg_count = to_int(service_dict.get('log_msg_count', throttle_count))
         host = service_dict.get('host', 'localhost')
         port = to_int(service_dict.get('port', 1883))
         keepalive = to_int(service_dict.get('keepalive', 60))
@@ -318,6 +319,7 @@ class MQTTResponder(weewx.engine.StdService):
             thread = MQTTResponderThread(self.logger,
                                          self.thread_error,
                                          self.data_queue,
+                                         log_msg_count,
                                          throttle_count,
                                          throttle_sleep,
                                          delta,
@@ -519,6 +521,7 @@ class MQTTResponderThread(threading.Thread):
                  logger,
                  thread_error,
                  data_queue,
+                 log_msg_count,
                  throttle_count,
                  throttle_sleep,
                  delta,
@@ -534,6 +537,7 @@ class MQTTResponderThread(threading.Thread):
         self.thread_error = thread_error
         self.throttle_count = throttle_count
         self.throttle_sleep = throttle_sleep
+        self.log_msg_count = log_msg_count
         self.data_queue = data_queue
         self.config_dict = config_dict
         self.host = host
@@ -586,6 +590,7 @@ class MQTTResponderThread(threading.Thread):
                 if data:
                     self.logger.logdbg(f"In MQTTResponderThread.run request: {data}")
 
+                    # ToDo: Wait for connection?
                     self.mqtt_client.connect(self.host, self.port, self.keepalive)
 
                     record_count = 0
@@ -622,8 +627,8 @@ class MQTTResponderThread(threading.Thread):
                             self.mids[mqtt_message_info.mid] = {}
                             self.mids[mqtt_message_info.mid]['time_stamp'] = time.time()
                             self.mids[mqtt_message_info.mid]['qos'] = self.publish_qos
-                        # ToDo: Make configurable
-                        if record_count % 1000 == 0:
+
+                        if record_count % self.log_msg_count == 0:
                             self.logger.loginf(f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
                                                "have been published.")
 
@@ -918,16 +923,14 @@ class MQTTRequesterLoopThread(threading.Thread):
         for data_binding_name, data_binding in self.data_bindings.items():
             if not data_binding['dbmanager']:
                 data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
-                # ToDo: Temporarily loginf as refactoring
-                self.logger.loginf(f"Opened db {data_binding_name}.")
+                self.logger.logdbg(f"Opened db {data_binding_name}.")
 
         self.mqtt_client.loop_forever()
         self.logger.loginf("Shutting thread down.")
 
         for data_binding_name, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
-            # ToDo: Temporarily loginf as refactoring
-            self.logger.loginf(f"Closed db {data_binding_name}.")
+            self.logger.logdbg(f"Closed db {data_binding_name}.")
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.response_topic, self.subscribe_qos)
@@ -946,7 +949,6 @@ class MQTTRequesterLoopThread(threading.Thread):
                                 f"MQTT log: {msg}")
 
     def _on_message(self, _userdata, msg):
-        # ToDo: Fine tune exception handling
         try:
             record = json.loads(msg.payload.decode('utf-8'))
 
@@ -987,7 +989,6 @@ class MQTTRequesterLoopThread(threading.Thread):
         except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
             self.logger.logerr(f"Response Failed with {type(exception)} and reason {exception}.")
             self.logger.logerr(f"{traceback.format_exc()}")
-            self.mqtt_client.disconnect()
 
     def _on_subscribe(self, _userdata, mid):
         if mid == self.response_topic_mid:

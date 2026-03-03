@@ -62,6 +62,11 @@ When retrieving secondary data to be published, replicated the largest differenc
 Some extensions do not force the time to an archive interval, so the WeeWX default value of 'None' does not always work.
 The default value is 60.
 
+## log_msg_count
+
+Controls how often the count published 'catchup' records are logged.
+The default value is the `throttle_count` amount.
+
 ### throttle_count
 
 When publishing 'catchup' data, it may be published fast enough that the broker is 'overloaded'
