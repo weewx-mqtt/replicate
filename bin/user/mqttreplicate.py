@@ -27,7 +27,7 @@ import weewx.engine
 
 from weeutil.weeutil import to_bool, to_int
 
-VERSION = "1.0.0-rc03b"
+VERSION = "1.0.0-rc03c"
 DRIVER_NAME = 'MQTTRequester'
 DRIVER_VERSION = VERSION
 REQUEST_TOPIC = 'replicate/request'
