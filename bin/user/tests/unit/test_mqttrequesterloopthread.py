@@ -56,46 +56,15 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
         instance_name = helpers.random_string()
         data_bindings = {
             instance_name: {
-                'dbmanager': mock_db_manager,
+                'dbmanager': None,
+                'manager_dict': helpers.random_string(),
             }
         }
         with mock.patch('user.mqttreplicate.threading') as mock_threading:
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-
-                SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 None,
-                                                                 None,
-                                                                 True,
-                                                                 None,
-                                                                 data_bindings,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
-
-                SUT.run()
-
-                mock_threading.get_native_id.assert_called_once_with()
-                mock_client.loop_forever.assert_called_once_with()
-                mock_db_manager.close.assert_called_once()
-
-    def test_on_connect(self):
-        mock_logger = mock.Mock()
-        mock_client = mock.Mock()
-        instance_name = helpers.random_string()
-        data_bindings = {
-            instance_name: {
-                'manager_dict': {},
-                'dbmanager': None,
-            }
-        }
-
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
                 with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                    mock_manager.open_manager.return_value = mock_db_manager
+
                     SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
                                                                      mock_client,
                                                                      None,
@@ -110,13 +79,46 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                      None,
                                                                      None)
 
-                    mock_client.subscribe.return_value = (random.randint(11, 20), random.randint(1, 10))
+                    SUT.run()
 
-                    SUT._on_connect(None)
-
-                    self.assertEqual(mock_client.subscribe.call_count, 2)
+                    mock_threading.get_native_id.assert_called_once_with()
                     self.assertTrue(data_bindings[instance_name]['dbmanager'])
                     mock_manager.open_manager.assert_called_once()
+                    mock_client.loop_forever.assert_called_once_with()
+                    mock_db_manager.close.assert_called_once()
+
+    def test_on_connect(self):
+        mock_logger = mock.Mock()
+        mock_client = mock.Mock()
+        instance_name = helpers.random_string()
+        data_bindings = {
+            instance_name: {
+                'manager_dict': {},
+                'dbmanager': None,
+            }
+        }
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt'):
+                SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
+                                                                 mock_client,
+                                                                 None,
+                                                                 None,
+                                                                 True,
+                                                                 None,
+                                                                 data_bindings,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None)
+
+                mock_client.subscribe.return_value = (random.randint(11, 20), random.randint(1, 10))
+
+                SUT._on_connect(None)
+
+                self.assertEqual(mock_client.subscribe.call_count, 2)
 
     def test_on_subscribe(self):
         mock_logger = mock.Mock()

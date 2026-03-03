@@ -914,13 +914,20 @@ class MQTTRequesterLoopThread(threading.Thread):
         self.thread_id = threading.get_native_id()
         threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
         self.logger.loginf(f"MQTTRequesterLoopThread, {threading.current_thread().name}, is running.")
+
+        for data_binding_name, data_binding in self.data_bindings.items():
+            if not data_binding['dbmanager']:
+                data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
+                # ToDo: Temporarily loginf as refactoring
+                self.logger.loginf(f"Opened db {data_binding_name}.")
+
         self.mqtt_client.loop_forever()
         self.logger.loginf("Shutting thread down.")
 
         for data_binding_name, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
             # ToDo: Temporarily loginf as refactoring
-            self.logger.loginf(f"On disconnect, closed db {data_binding_name}.")
+            self.logger.loginf(f"Closed db {data_binding_name}.")
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.response_topic, self.subscribe_qos)
@@ -933,11 +940,6 @@ class MQTTRequesterLoopThread(threading.Thread):
         self.logger.loginf(f"Subscribing for archive records on {self.archive_topic} "
                            f"has a mid {int(mid)} "
                            f"and result code {int(result)}")
-
-        # dbmanager needs to be created in same thread as on_message called
-        for _, data_binding in self.data_bindings.items():
-            if not data_binding['dbmanager']:
-                data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
 
     def _on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger[level](f"({self.client_id}) "
