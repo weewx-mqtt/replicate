@@ -44,7 +44,6 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                  keepalive)
 
                 self.assertEqual(mock_client.on_connect, SUT._on_connect)
-                self.assertEqual(mock_client.on_disconnect, SUT._on_disconnect)
                 self.assertEqual(mock_client.on_message, SUT._on_message)
                 self.assertEqual(mock_client.on_subscribe, SUT._on_subscribe)
                 self.assertEqual(mock_client.on_log, SUT._on_log)
@@ -53,7 +52,13 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
     def test_run(self):
         mock_logger = mock.Mock()
         mock_client = mock.Mock()
-
+        mock_db_manager = mock.Mock()
+        instance_name = helpers.random_string()
+        data_bindings = {
+            instance_name: {
+                'dbmanager': mock_db_manager,
+            }
+        }
         with mock.patch('user.mqttreplicate.threading') as mock_threading:
             with mock.patch('user.mqttreplicate.paho.mqtt'):
 
@@ -63,7 +68,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                  None,
                                                                  True,
                                                                  None,
-                                                                 None,
+                                                                 data_bindings,
                                                                  None,
                                                                  None,
                                                                  None,
@@ -75,6 +80,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
 
                 mock_threading.get_native_id.assert_called_once_with()
                 mock_client.loop_forever.assert_called_once_with()
+                mock_db_manager.close.assert_called_once()
 
     def test_on_connect(self):
         mock_logger = mock.Mock()
@@ -111,39 +117,6 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                     self.assertEqual(mock_client.subscribe.call_count, 2)
                     self.assertTrue(data_bindings[instance_name]['dbmanager'])
                     mock_manager.open_manager.assert_called_once()
-
-    @unittest.skip("ToDo: refactoring, currently invalid")
-    def test_on_disconnect(self):
-        mock_logger = mock.Mock()
-        mock_client = mock.Mock()
-        instance_name = helpers.random_string()
-        mock_db_manager = mock.Mock()
-        data_bindings = {
-            instance_name: {
-                'dbmanager': mock_db_manager,
-            }
-        }
-
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.weewx.manager'):
-                    SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                     mock_client,
-                                                                     None,
-                                                                     None,
-                                                                     True,
-                                                                     None,
-                                                                     data_bindings,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None)
-
-                    SUT._on_disconnect(None, 0)
-
-                    mock_db_manager.close.assert_called_once()
 
     def test_on_subscribe(self):
         mock_logger = mock.Mock()

@@ -902,12 +902,12 @@ class MQTTRequesterLoopThread(threading.Thread):
         }
 
         self.mqtt_client.on_connect = self._on_connect
-        self.mqtt_client.on_disconnect = self._on_disconnect
         if log_mqtt:
             self.mqtt_client.on_log = self._on_log
         self.mqtt_client.on_message = self._on_message
         self.mqtt_client.on_subscribe = self._on_subscribe
 
+        # ToDo: Wait for connection?
         self.mqtt_client.connect(host, port, keepalive)
 
     def run(self):
@@ -915,6 +915,12 @@ class MQTTRequesterLoopThread(threading.Thread):
         threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
         self.logger.loginf(f"MQTTRequesterLoopThread, {threading.current_thread().name}, is running.")
         self.mqtt_client.loop_forever()
+        self.logger.loginf("Shutting thread down.")
+
+        for data_binding_name, data_binding in self.data_bindings.items():
+            data_binding['dbmanager'].close()
+            # ToDo: Temporarily loginf as refactoring
+            self.logger.loginf(f"On disconnect, closed db {data_binding_name}.")
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.response_topic, self.subscribe_qos)
@@ -932,13 +938,6 @@ class MQTTRequesterLoopThread(threading.Thread):
         for _, data_binding in self.data_bindings.items():
             if not data_binding['dbmanager']:
                 data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
-
-    def _on_disconnect(self, _userdata, rc):
-        if rc == 0:
-            for data_binding_name, data_binding in self.data_bindings.items():
-                # ToDo: Need to investigate - seems to run in a different thread when running standalone
-                # data_binding['dbmanager'].close()
-                self.logger.logdbg(f"On disconnect, closed db {data_binding_name}.")
 
     def _on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger[level](f"({self.client_id}) "
