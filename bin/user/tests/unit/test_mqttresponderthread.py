@@ -124,7 +124,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                         SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                      None,
                                                                      mock_data_queue,
-                                                                     None,
+                                                                     random.randint(2, 100),
                                                                      None,
                                                                      None,
                                                                      config,
@@ -135,10 +135,15 @@ class TestMQTTResponderThread(unittest.TestCase):
                                                                      publish_qos)
 
                         msg_dict = {
+                            'rc': 0,
                             'mid': random.randint(1, 9999)
                         }
                         msg = namedtuple('msg', msg_dict.keys())(**msg_dict)
                         mock_mqtt_client.publish.return_value = msg
+
+                        SUT.mids = {
+                            msg.mid: {}
+                        }
 
                         SUT.run()
 
@@ -149,18 +154,10 @@ class TestMQTTResponderThread(unittest.TestCase):
                                                                          publish_qos,
                                                                          False,
                                                                          properties=data['properties'])
-                        # ToDo: while refactoring, not valid
-                        # mock_mqtt_client.loop_forever.assert_called_once_with()
-                        mock_db_manager.close.assert_called_once()
 
-                        expected_results = {
-                            msg_dict['mid']: {
-                                'time_stamp': now,
-                                'qos': publish_qos,
-                            }
-                        }
-                        # ToDo: while refactoring, not valid
-                        # self.assertEqual(SUT.mids, expected_results)
+                        mock_mqtt_client.loop.assert_called_once_with(.1)
+                        mock_db_manager.close.assert_called_once()
+                        self.assertFalse(SUT.mids)
 
     def test_run_has_exception(self):
         mock_logger = mock.Mock()
