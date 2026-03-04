@@ -804,9 +804,18 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         return self._archive_interval
 
     def genStartupRecords(self, _lastgood_ts):
+        record_count = 0
+        record = {'dateTime': 0}
         for record in self.gen_replica_record(self.startup_max_tries,
                                               self.startup_wait_before_retry):
+            record_count += 1
+            # ToDo: Make configurable
+            if record_count % 1000 == 0:
+                self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
             yield record
+
+        # ToDo: decided what to do when record_count is 0
+        self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
 
     def genArchiveRecords(self, _lastgood_ts):
         for record in self.gen_replica_record(self.archive_max_tries,
@@ -815,24 +824,16 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
     def gen_replica_record(self, max_tries, wait_before_retry):
         ''' Generator to return the records that are in the queue. '''
-        record_count = 0
-        record = {'dateTime': 0}
         tries = 0
         while True:
             try:
                 record = self.data_queue.get(True, wait_before_retry)[1]
-                record_count += 1
-                if record_count % 1000 == 0:
-                    self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
                 tries = 0
                 yield record
             except queue.Empty:
                 tries += 1
-                self.logger.logdbg(f"After {tries} wait of {wait_before_retry}, "
-                                   f"record count: {record_count}"
-                                   )
+                self.logger.logdbg(f"After {tries} wait of {wait_before_retry}, ")
                 if tries >= max_tries:
-                    self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
                     break
 
     def genLoopPackets(self):
