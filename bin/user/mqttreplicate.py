@@ -851,6 +851,10 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     def closePort(self):
         """Run when an engine shutdown is requested."""
         self.mqtt_client.disconnect()
+        # ToDo: add ability to exit loop after X time
+        while self.loop_thread.running:
+            time.sleep(1)
+        self.logger.loginf("Exiting MQTTRequester")
 
     def request_records(self, data_binding_name, qos, topic, last_ts):
         ''' Request the missing data. '''
@@ -926,12 +930,14 @@ class MQTTRequesterLoopThread(threading.Thread):
                 data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
                 self.logger.logdbg(f"Opened db {data_binding_name}.")
 
+        self.running = True
         self.mqtt_client.loop_forever()
-        self.logger.loginf("Shutting thread down.")
+        self.running = False
 
         for data_binding_name, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
             self.logger.logdbg(f"Closed db {data_binding_name}.")
+        self.logger.loginf("Thread is shut down.")
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.response_topic, self.subscribe_qos)
