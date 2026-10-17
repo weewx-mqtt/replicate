@@ -315,7 +315,8 @@ class MQTTResponder(weewx.engine.StdService):
 
         self.data_queue = queue.Queue()
         self.threads = []
-        self.thread_error = False
+        # A shared event, so a thread pool thread can signal that it has failed.
+        self.thread_error = threading.Event()
         for _i in range(self.max_responder_threads):
             thread = MQTTResponderThread(self.logger,
                                          self.thread_error,
@@ -377,7 +378,7 @@ class MQTTResponder(weewx.engine.StdService):
         ''' Handle the new_archive_record event.'''
         if not self.loop_thread.is_alive():
             raise ThreadError('Loop thread abnormally ended')
-        if self.thread_error:
+        if self.thread_error.is_set():
             raise ThreadError('A thread pool thread abnormally ended.')
         for data_binding_name, data_binding in self.data_bindings.items():
             if data_binding['type'] == 'main':
@@ -657,7 +658,7 @@ class MQTTResponderThread(threading.Thread):
                                    f'properties {data["properties"]} '
                                    f"failed with {type(exception)} and reason {exception}.")
                 self.logger.logerr(f"{traceback.format_exc()}")
-                self.thread_error = True
+                self.thread_error.set()
                 break
 
         for _data_binding_key, data_binding in self.data_bindings.items():

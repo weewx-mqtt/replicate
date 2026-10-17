@@ -42,7 +42,7 @@ class TestMQTTResponder(unittest.TestCase):
 
         config = configobj.ConfigObj(config_dict)
 
-        with mock.patch('user.mqttreplicate.threading'):
+        with mock.patch('user.mqttreplicate.threading') as mock_threading:
             with mock.patch('user.mqttreplicate.Logger') as mock_logger:
                 with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                     with mock.patch('user.mqttreplicate.MQTTResponderThread') as mock_responder_thread:
@@ -68,8 +68,11 @@ class TestMQTTResponder(unittest.TestCase):
                                         }
 
                                         mock_mqtt_client.get_client.assert_called_once_with(mock_logger(), client_id, None)
+                                        # The thread_error event must be shared with the threads,
+                                        # so a thread failure is seen by the service.
+                                        self.assertEqual(SUT.thread_error, mock_threading.Event())
                                         mock_responder_thread.assert_called_once_with(mock_logger(),
-                                                                                      False,
+                                                                                      SUT.thread_error,
                                                                                       mock_queue(),
                                                                                       1000,
                                                                                       1000,
@@ -200,10 +203,50 @@ class TestMQTTResponder(unittest.TestCase):
 
                                         event = Event({'dateTime': random.randint(9999, 99999)})
 
+                                        SUT.thread_error.is_set.return_value = False
                                         SUT.new_archive_record(event)
 
                                         mock_db_manager.getRecord.assert_called_once_with(event.record['dateTime'], max_delta=60)
                                         self.assertEqual(mock_client.publish.call_count, 2)
+
+    def test_new_archive_record_thread_error(self):
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                    helpers.random_string(): {
+                        f'{helpers.random_string()}-main': {
+                            'type': 'main'
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt'):
+                with mock.patch('user.mqttreplicate.Logger'):
+                    with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                        with mock.patch('user.mqttreplicate.MQTTResponderThread'):
+                            with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
+                                with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
+                                    with mock.patch('user.mqttreplicate.json'):
+                                        mock_db_manager = mock.Mock()
+                                        mock_manager.open_manager.return_value = mock_db_manager
+
+                                        mock_client = mock.Mock()
+                                        mock_mqtt_client.get_client.return_value = mock_client
+
+                                        SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+
+                                        event = Event({'dateTime': random.randint(9999, 99999)})
+
+                                        # A set thread_error event must raise a ThreadError.
+                                        SUT.thread_error.is_set.return_value = True
+                                        with self.assertRaises(user.mqttreplicate.ThreadError):
+                                            SUT.new_archive_record(event)
 
 if __name__ == '__main__':
     helpers.run_tests()

@@ -122,12 +122,14 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_mqtt_client = mock.Mock()
                         mock_client.get_client.return_value = mock_mqtt_client
 
+                        mock_thread_error = mock.Mock()
+
                         SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
-                                                                     None,
+                                                                     mock_thread_error,
                                                                      mock_data_queue,
                                                                      random.randint(2, 100),
-                                                                     None,
-                                                                     None,
+                                                                     1000,
+                                                                     1,
                                                                      None,
                                                                      config,
                                                                      None,
@@ -160,6 +162,8 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_mqtt_client.loop.assert_called_once_with(.1)
                         mock_db_manager.close.assert_called_once()
                         self.assertFalse(SUT.mids)
+                        # The happy path must not signal a thread error.
+                        mock_thread_error.set.assert_not_called()
 
     def test_run_has_exception(self):
         mock_logger = mock.Mock()
@@ -188,6 +192,8 @@ class TestMQTTResponderThread(unittest.TestCase):
                     mock_mqtt_client = mock.Mock()
                     mock_client.get_client.return_value = mock_mqtt_client
 
+                    mock_thread_error = mock.Mock()
+
                     data = {
                         'topic': helpers.random_string(),
                         'data_binding': f'{instance_name}/{binding_name}',
@@ -197,7 +203,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                     mock_data_queue = mock.Mock()
 
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
-                                                                 None,
+                                                                 mock_thread_error,
                                                                  mock_data_queue,
                                                                  None,
                                                                  None,
@@ -222,6 +228,8 @@ class TestMQTTResponderThread(unittest.TestCase):
 
                     mock_manager.open_manager.assert_called_once()
                     self.assertEqual(mock_logger.logerr.call_count, 2)
+                    # The failure must be signaled through the shared thread_error event.
+                    mock_thread_error.set.assert_called_once_with()
                     mock_db_manager.close.assert_called_once()
 
     def test_on_publish_all_responses_published(self):
