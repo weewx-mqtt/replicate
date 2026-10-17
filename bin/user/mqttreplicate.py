@@ -647,8 +647,16 @@ class MQTTResponderThread(threading.Thread):
                                        f'qos {self.publish_qos} '
                                        f'properties {data["properties"]} '
                                        f'with records: {record_count}.')
-                    # Wait for all messages to be published
-                    while len(self.mids) > 0:
+                    # Wait for all messages to be published.
+                    # Bound the wait by the keepalive, so a lost connection
+                    # does not hang the thread forever.
+                    wait_start = time.time()
+                    while self.mids:
+                        if time.time() - wait_start > self.keepalive:
+                            self.logger.logerr(f'Timed out after {self.keepalive} seconds '
+                                               f'waiting for {len(self.mids)} messages '
+                                               f'to be published on topic {data["topic"]}.')
+                            break
                         self.mqtt_client.loop(1)
                     self.mqtt_client.disconnect()
                 else:
@@ -838,7 +846,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                 yield record
             except queue.Empty:
                 tries += 1
-                self.logger.logdbg(f"After {tries} wait of {wait_before_retry}, ")
+                self.logger.logdbg(f"No replica record available after a wait of {wait_before_retry} seconds, "
+                                   f"try {tries} of {max_tries}.")
                 if tries >= max_tries:
                     break
 

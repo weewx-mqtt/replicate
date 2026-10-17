@@ -165,6 +165,87 @@ class TestMQTTResponderThread(unittest.TestCase):
                         # The happy path must not signal a thread error.
                         mock_thread_error.set.assert_not_called()
 
+    def test_run_publish_wait_timeout(self):
+        mock_logger = mock.Mock()
+        instance_name = helpers.random_string()
+        binding_name = helpers.random_string()
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                    instance_name: {
+                        binding_name: {
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        host = helpers.random_string()
+        port = helpers.random_string()
+        keepalive = 10
+        publish_qos = helpers.random_string()
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
+                    with mock.patch('user.mqttreplicate.time') as mock_time:
+                        # time.time() is called for the mid time_stamp, the wait start,
+                        # and then the wait check. The last one puts the wait past the keepalive.
+                        mock_time.time.side_effect = [100, 200, 200 + keepalive + 1]
+
+                        mock_db_manager = mock.Mock()
+                        mock_manager.open_manager.return_value = mock_db_manager
+                        mock_db_manager.genBatchRecords.return_value = [{}]
+
+                        mock_mqtt_client = mock.Mock()
+                        mock_client.get_client.return_value = mock_mqtt_client
+
+                        mock_thread_error = mock.Mock()
+
+                        data = {
+                            'topic': helpers.random_string(),
+                            'data_binding': f'{instance_name}/{binding_name}',
+                            'properties': helpers.random_string(),
+                            'start_timestamp': helpers.random_string()
+                        }
+                        mock_data_queue = mock.Mock()
+                        mock_data_queue.get.side_effect = [data, None]
+
+                        SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
+                                                                     mock_thread_error,
+                                                                     mock_data_queue,
+                                                                     random.randint(2, 100),
+                                                                     1000,
+                                                                     1,
+                                                                     None,
+                                                                     config,
+                                                                     None,
+                                                                     host,
+                                                                     port,
+                                                                     keepalive,
+                                                                     publish_qos)
+
+                        msg_dict = {
+                            'rc': 0,
+                            'mid': random.randint(1, 9999)
+                        }
+                        msg = namedtuple('msg', msg_dict.keys())(**msg_dict)
+                        mock_mqtt_client.publish.return_value = msg
+
+                        # The publish callback never fires, so the mid stays in flight.
+                        SUT.run()
+
+                        # The wait must give up after the keepalive, log, and disconnect.
+                        self.assertEqual(mock_logger.logerr.call_count, 1)
+                        self.assertIn(f'Timed out after {keepalive} seconds',
+                                      mock_logger.logerr.call_args[0][0])
+                        mock_mqtt_client.disconnect.assert_called_once_with()
+                        # A publish timeout is logged, but must not take the responder down.
+                        mock_thread_error.set.assert_not_called()
+                        mock_db_manager.close.assert_called_once()
+
     def test_run_has_exception(self):
         mock_logger = mock.Mock()
         instance_name = helpers.random_string()
