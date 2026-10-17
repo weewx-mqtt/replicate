@@ -148,5 +148,59 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
                 mock_queue.put.assert_called_once()
 
+    def test_on_message_unknown_data_binding(self):
+        mock_logger = mock.Mock()
+        mock_client = mock.Mock()
+        mock_queue = mock.Mock()
+        instance_name = helpers.random_string()
+        unknown_data_binding = helpers.random_string()
+        data_bindings = {
+            instance_name: {
+                'dbmanager': mock.Mock(),
+                'type': None,
+            }
+        }
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
+
+                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
+                                                                 mock_client,
+                                                                 None,
+                                                                 None,
+                                                                 mock_queue,
+                                                                 data_bindings,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None)
+
+                properties_dict = {
+                    'UserProperty': [('data_binding', unknown_data_binding)],
+                    'ResponseTopic': helpers.random_string(),
+                }
+                properties = namedtuple('properties', properties_dict.keys())(**properties_dict)
+
+                mock_mqtt.client.Properties.return_value = Properties()
+
+                msg_dict = {
+                    'topic': helpers.random_string(),
+                    'properties': properties,
+                    'qos': random.randint(1, 10),
+                    'retain': helpers.random_string(),
+                    'payload': str(random.randint(1, 9999)).encode('utf-8'),
+                }
+                msg = namedtuple('msg', msg_dict.keys())(**msg_dict)
+
+                SUT._on_message(None, msg)
+
+                # The request must not be queued and the error message must
+                # contain the actual unknown data_binding name.
+                mock_queue.put.assert_not_called()
+                self.assertEqual(mock_logger.logerr.call_count, 1)
+                self.assertIn(f'has unknown data_binding {unknown_data_binding}',
+                              mock_logger.logerr.call_args[0][0])
+
 if __name__ == '__main__':
     helpers.run_tests()

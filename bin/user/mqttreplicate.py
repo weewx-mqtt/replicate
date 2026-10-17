@@ -491,7 +491,7 @@ class MQTTResponderLoopThread(threading.Thread):
                 self.logger.logerr(f'Request with topic skipped: {msg.topic} '
                                    f'UserProperty: {msg.properties.UserProperty} '
                                    f'payload: {msg.payload} '
-                                   ' has unknown data_binding {data_binding}')
+                                   f'has unknown data_binding {data_binding}')
                 return
 
             response_topic = msg.properties.ResponseTopic
