@@ -257,7 +257,6 @@ class MQTTResponder(weewx.engine.StdService):
         self.logger.loginf(f"version: {VERSION}")
         self.logger.logdbg(f"Responder main MQTT client is: {self.client_id}")
 
-        self.thread_id = threading.get_native_id()
         self.enabled = to_bool(config_dict.get('MQTTReplicate', {})
                                .get('Responder', {})
                                .get('enable', True))
@@ -274,6 +273,9 @@ class MQTTResponder(weewx.engine.StdService):
 
         if len(service_dict.sections) > 1:
             raise AttributeError("Only one instance is allowed.")
+
+        if not service_dict.sections:
+            raise AttributeError("At least one instance is required.")
 
         instance_name = service_dict.sections[0]
         self.request_topic = service_dict.get('request_topic', f'{REQUEST_TOPIC}/{instance_name}')
@@ -695,7 +697,6 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.logger.loginf(f"version: {VERSION}")
         self.logger.logdbg(f"Requester main MQTT client is: {self.client_id}")
 
-        self.thread_id = threading.get_native_id()
         stn_dict = config_dict['MQTTReplicate']['Requester']
         exclude_keys = ['password']
         sanitized_service_dict = {k: stn_dict[k] for k in set(list(stn_dict.keys())) - set(exclude_keys)}

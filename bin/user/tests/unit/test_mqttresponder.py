@@ -101,6 +101,29 @@ class TestMQTTResponder(unittest.TestCase):
 
                                         self.assertDictEqual(SUT.data_bindings, data_bindings)
 
+    def test_init_no_instance(self):
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttreplicate.weewx.manager'):
+                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
+                        with mock.patch('user.mqttreplicate.MQTTClient'):
+                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
+
+                                # A Responder section with no instance must raise,
+                                # not blow up with an IndexError.
+                                with self.assertRaises(AttributeError):
+                                    user.mqttreplicate.MQTTResponder(mock_engine, config)
+
     def test_shutDown_disabled(self):
         mock_engine = mock.Mock()
         config_dict = {
