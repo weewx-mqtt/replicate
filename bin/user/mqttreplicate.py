@@ -328,7 +328,7 @@ class MQTTResponder(weewx.engine.StdService):
                                          throttle_sleep,
                                          delta,
                                          config_dict,
-                                         False,
+                                         log_mqtt,
                                          host,
                                          port,
                                          keepalive,
@@ -908,6 +908,9 @@ class MQTTRequesterLoopThread(threading.Thread):
 
         self.response_topic_mid = None
         self.subscribed = False
+        # Set in run(), but initialized here, so it is safe to read
+        # before the thread has started.
+        self.running = False
 
         self.mqtt_logger = {
             paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,

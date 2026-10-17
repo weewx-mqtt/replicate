@@ -49,6 +49,9 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                 self.assertEqual(mock_client.on_log, SUT._on_log)
                 mock_client.connect.assert_called_once_with(host, port, keepalive)
 
+                # 'running' must be readable before the thread has started.
+                self.assertFalse(SUT.running)
+
     def test_run(self):
         mock_logger = mock.Mock()
         mock_client = mock.Mock()

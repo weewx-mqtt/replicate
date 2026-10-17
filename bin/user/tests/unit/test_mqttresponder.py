@@ -31,6 +31,7 @@ class TestMQTTResponder(unittest.TestCase):
         config_dict = {
             'MQTTReplicate': {
                 'Responder': {
+                    'log_mqtt': True,
                     instance_name: {
                         primary_name: {
                             'type': 'main'
@@ -79,7 +80,7 @@ class TestMQTTResponder(unittest.TestCase):
                                                                                       1,
                                                                                       60,
                                                                                       config,
-                                                                                      False,
+                                                                                      True,
                                                                                       'localhost',
                                                                                       1883,
                                                                                       60,
@@ -89,7 +90,7 @@ class TestMQTTResponder(unittest.TestCase):
                                         mock_responder_loop_thread.assert_called_once_with(mock_logger(),
                                                                                            mock_client,
                                                                                            client_id,
-                                                                                           False,
+                                                                                           True,
                                                                                            mock_queue(),
                                                                                            data_bindings,
                                                                                            f'replicate/request/{instance_name}',
