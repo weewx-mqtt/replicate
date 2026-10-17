@@ -12,7 +12,7 @@ The responder, a WeeWX service, is the primary database(s)
 |---------------------------------------------------------------|-------------------------|
 |[WeeWX](https://www.weewx.com)                                 |5.0.0 or higher          |
 |[Python](https://www.python.org)                               |3.9.13 or higher         |
-|[Paho MQTT Python client](https://pypi.org/project/paho-mqtt/) |1.6.1 or higher          |
+|[Paho MQTT Python client](https://pypi.org/project/paho-mqtt/) |2.0.0 or higher          |
 |[MQTT](https://mqtt.org)                                       |5 or higher              |
 
 *Note:* Early versions of Python 3 may work, but have not been explicitly tested.
