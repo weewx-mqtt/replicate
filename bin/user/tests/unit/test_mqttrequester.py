@@ -83,6 +83,11 @@ class TestMQTTRequester(unittest.TestCase):
                                     SUT.loop_thread.start.assert_called_once_with()
                                     SUT.mqtt_client.publish.assert_called_once()
 
+                                    # The default response_topic is RESPONSE_TOPIC.
+                                    self.assertEqual(SUT.response_topic, f'replicate/response/{client_id}')
+                                    # response_topic is the 8th positional arg of MQTTRequesterLoopThread.
+                                    self.assertEqual(mock_requester_thread.call_args[0][7], f'replicate/response/{client_id}')
+
                                     expected_results = {
                                         f"{instance_name}/{primary_name}": {
                                             'request_topic': f"replicate/request/{instance_name}",

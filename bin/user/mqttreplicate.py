@@ -712,7 +712,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         keepalive = to_int(stn_dict.get('keepalive', 60))
         log_mqtt = stn_dict.get('log_mqtt', False)
 
-        response_topic = stn_dict.get('response_topic', REQUEST_TOPIC)
+        response_topic = stn_dict.get('response_topic', RESPONSE_TOPIC)
         self.response_topic = f'{response_topic}/{self.client_id}'
         request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
 
