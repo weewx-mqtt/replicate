@@ -98,6 +98,34 @@ class TestMQTTResponder(unittest.TestCase):
 
                                         self.assertDictEqual(SUT.data_bindings, data_bindings)
 
+    def test_shutDown_disabled(self):
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                    'enable': False
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+                with mock.patch('user.mqttreplicate.weewx.manager'):
+                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
+                        with mock.patch('user.mqttreplicate.MQTTClient'):
+                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
+
+                                SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+                                self.assertFalse(SUT.enabled)
+
+                                # A disabled responder must shut down without error,
+                                # even though it was never fully initialized.
+                                SUT.shutDown()
+
+                                mock_logger().loginf.assert_any_call('Responder not enabled, exiting.')
+
     def test_shutDown(self):
         mock_engine = mock.Mock()
         config_dict = {

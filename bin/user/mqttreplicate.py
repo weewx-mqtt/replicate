@@ -258,10 +258,11 @@ class MQTTResponder(weewx.engine.StdService):
         self.logger.logdbg(f"Responder main MQTT client is: {self.client_id}")
 
         self.thread_id = threading.get_native_id()
+        self.enabled = to_bool(config_dict.get('MQTTReplicate', {})
+                               .get('Responder', {})
+                               .get('enable', True))
 
-        if not to_bool(config_dict.get('MQTTReplicate', {})
-                       .get('Responder', {})
-                       .get('enable', True)):
+        if not self.enabled:
             self.logger.loginf("Responder not enabled, exiting.")
             return
 
@@ -349,6 +350,9 @@ class MQTTResponder(weewx.engine.StdService):
 
     def shutDown(self):
         self.logger.loginf('Shutting down.')
+        if not self.enabled:
+            return
+
         for _, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
 
@@ -359,15 +363,15 @@ class MQTTResponder(weewx.engine.StdService):
         else:
             self.logger.loginf(f"Shut down {self.loop_thread.native_id} thread")
 
-        for i in range(self.max_responder_threads):
+        for _ in range(self.max_responder_threads):
             self.data_queue.put(None)
 
-        for i in range(self.max_responder_threads):
-            self.threads[i].join(20)
-        if self.threads[i].is_alive():
-            self.logger.logerr(f"Unable to shut down {self.threads[i].native_id} thread")
-        else:
-            self.logger.loginf(f"Shut down {self.threads[i].native_id} thread")
+        for thread in self.threads:
+            thread.join(20)
+            if thread.is_alive():
+                self.logger.logerr(f"Unable to shut down {thread.native_id} thread")
+            else:
+                self.logger.loginf(f"Shut down {thread.native_id} thread")
 
     def new_archive_record(self, event):
         ''' Handle the new_archive_record event.'''
