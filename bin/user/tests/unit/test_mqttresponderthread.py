@@ -79,6 +79,106 @@ class TestMQTTResponderThread(unittest.TestCase):
             }
             self.assertDictEqual(SUT.data_bindings, expected_results)
 
+    def test_mqtt_logger_levels(self):
+        mock_logger = mock.Mock()
+        instance_name = helpers.random_string()
+        data_binding_name = helpers.random_string()
+
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                    instance_name: {
+                        data_binding_name: {
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
+                    mock_manager.get_manager_dict_from_config.return_value = helpers.random_string()
+                    mock_client.get_client.return_value = mock.Mock()
+
+                    SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 config,
+                                                                 True,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None)
+
+                self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_INFO],
+                                 mock_logger.loginf)
+                self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_NOTICE],
+                                 mock_logger.loginf)
+                self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_WARNING],
+                                 mock_logger.logerr)
+                self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR],
+                                 mock_logger.logerr)
+                self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_DEBUG],
+                                 mock_logger.logdbg)
+
+    def test_on_log(self):
+        mock_logger = mock.Mock()
+        random_int = random.randint(1, 9999)
+        instance_name = helpers.random_string()
+        data_binding_name = helpers.random_string()
+        msg = helpers.random_string()
+
+        config_dict = {
+            'MQTTReplicate': {
+                'Responder': {
+                    instance_name: {
+                        data_binding_name: {
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
+                    with mock.patch('user.mqttreplicate.random.randint', return_value=random_int):
+                        mock_manager.get_manager_dict_from_config.return_value = helpers.random_string()
+                        mock_client.get_client.return_value = mock.Mock()
+
+                        SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     config,
+                                                                     True,
+                                                                     None,
+                                                                     None,
+                                                                     None,
+                                                                     None)
+
+                        client_id = f'MQTTReplicateRespondThread-{random_int}'
+
+                        # A mapped level dispatches to the mapped logger method.
+                        SUT._on_log(None, None, user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR, msg)
+                        mock_logger.logerr.assert_called_once_with(f'Client {client_id} MQTT log: {msg}')
+
+                        # An unmapped level falls back to loginf instead of raising KeyError.
+                        SUT._on_log(None, None, helpers.random_string(), msg)
+                        mock_logger.loginf.assert_called_once_with(f'Client {client_id} MQTT log: {msg}')
+
     def test_run(self):
         mock_logger = mock.Mock()
         now = time.time()

@@ -463,8 +463,7 @@ class MQTTResponderLoopThread(threading.Thread):
                            f"and result {int(result)}.")
 
     def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger[level](f"({self.client_id}) "
-                                f"MQTT log: {msg}")
+        self.mqtt_logger.get(level, self.logger.loginf)(f"({self.client_id}) MQTT log: {msg}")
 
     def _on_message(self, _userdata, msg):
         try:
@@ -690,7 +689,7 @@ class MQTTResponderThread(threading.Thread):
             self.mids[mid] = {}
 
     def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger[level](f"Client {self.client_id} MQTT log: {msg}")
+        self.mqtt_logger.get(level, self.logger.loginf)(f"Client {self.client_id} MQTT log: {msg}")
 
 def loader(config_dict, engine):
     """ Load and return the driver. """
@@ -968,8 +967,7 @@ class MQTTRequesterLoopThread(threading.Thread):
                            f"and result code {int(result)}")
 
     def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger[level](f"({self.client_id}) "
-                                f"MQTT log: {msg}")
+        self.mqtt_logger.get(level, self.logger.loginf)(f"({self.client_id}) MQTT log: {msg}")
 
     def _on_message(self, _userdata, msg):
         try:

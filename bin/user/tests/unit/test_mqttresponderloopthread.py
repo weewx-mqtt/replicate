@@ -48,6 +48,60 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                 self.assertEqual(mock_client.on_log, SUT._on_log)
                 mock_client.connect.assert_called_once_with(host, port, keepalive)
 
+    def test_mqtt_logger_levels(self):
+        mock_logger = mock.Mock()
+        mock_client = mock.Mock()
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
+
+                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
+                                                                 mock_client,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None)
+
+                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_INFO], mock_logger.loginf)
+                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_NOTICE], mock_logger.loginf)
+                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_WARNING], mock_logger.logerr)
+                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_ERR], mock_logger.logerr)
+                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_DEBUG], mock_logger.logdbg)
+
+    def test_on_log(self):
+        mock_logger = mock.Mock()
+        mock_client = mock.Mock()
+        client_id = helpers.random_string()
+        msg = helpers.random_string()
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
+
+                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
+                                                                 mock_client,
+                                                                 client_id,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None,
+                                                                 None)
+
+                # A mapped level dispatches to the mapped logger method.
+                SUT._on_log(None, None, mock_mqtt.client.MQTT_LOG_ERR, msg)
+                mock_logger.logerr.assert_called_once_with(f'({client_id}) MQTT log: {msg}')
+
+                # An unmapped level falls back to loginf instead of raising KeyError.
+                SUT._on_log(None, None, helpers.random_string(), msg)
+                mock_logger.loginf.assert_called_once_with(f'({client_id}) MQTT log: {msg}')
+
     def test_run(self):
         mock_logger = mock.Mock()
         mock_client = mock.Mock()
