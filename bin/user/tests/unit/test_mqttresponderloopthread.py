@@ -31,17 +31,15 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
 
+                config = user.mqttreplicate.MQTTResponderConfig(log_mqtt=True,
+                                                                host=host,
+                                                                port=port,
+                                                                keepalive=keepalive)
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
+                                                                 config,
                                                                  None,
-                                                                 True,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 host,
-                                                                 port,
-                                                                 keepalive)
+                                                                 None)
 
                 self.assertEqual(mock_client.on_connect, SUT._on_connect)
                 self.assertEqual(mock_client.on_message, SUT._on_message)
@@ -57,13 +55,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
+                                                                 user.mqttreplicate.MQTTResponderConfig(),
                                                                  None,
                                                                  None)
 
@@ -84,13 +76,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
-                                                                 client_id,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
+                                                                 user.mqttreplicate.MQTTResponderConfig(client_id=client_id),
                                                                  None,
                                                                  None)
 
@@ -111,13 +97,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
+                                                                 user.mqttreplicate.MQTTResponderConfig(),
                                                                  None,
                                                                  None)
 
@@ -134,17 +114,12 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 topic,
-                                                                 qos,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                SUT = user.mqttreplicate.MQTTResponderLoopThread(
+                    mock_logger,
+                    mock_client,
+                    user.mqttreplicate.MQTTResponderConfig(request_topic=topic, subscribe_qos=qos),
+                    None,
+                    None)
 
                 mock_client.subscribe.return_value = (random.randint(1, 5), random.randint(6, 10))
 
@@ -170,15 +145,9 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
-                                                                 None,
-                                                                 None,
+                                                                 user.mqttreplicate.MQTTResponderConfig(),
                                                                  mock_queue,
-                                                                 data_bindings,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                                                                 data_bindings)
 
                 properties_dict = {
                     'UserProperty': [('data_binding', instance_name)],
@@ -220,15 +189,9 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
                 SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
                                                                  mock_client,
-                                                                 None,
-                                                                 None,
+                                                                 user.mqttreplicate.MQTTResponderConfig(),
                                                                  mock_queue,
-                                                                 data_bindings,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                                                                 data_bindings)
 
                 properties_dict = {
                     'UserProperty': [('data_binding', unknown_data_binding)],

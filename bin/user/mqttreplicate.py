@@ -90,6 +90,7 @@ class MQTTClient(abc.ABC):
         raise NotImplementedError("Method 'publish' is not implemented")
 
 class MQTTClientV2(MQTTClient):
+    # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' MQTTClient that communicates with paho mqtt v2. '''
     def __init__(self, logger, client_id, userdata):
         self.logger = logger
@@ -249,56 +250,95 @@ class MQTTClientV2(MQTTClient):
     def subscribe(self, topic, qos):
         return self.client.subscribe(topic, qos)
 
+@dataclasses.dataclass
+# (configuration object) pylint: disable=too-many-instance-attributes
+class MQTTResponderConfig:
+    ''' The configuration options for the responder. '''
+    client_id: str = None
+    enabled: bool = None
+    instance_name: str = None
+    request_topic: str = None
+    archive_topic: str = None
+    delta: int = None
+    throttle_count: int = None
+    throttle_sleep: int = None
+    log_msg_count: int = None
+    host: str = None
+    port: int = None
+    keepalive: int = None
+    subscribe_qos: int = None
+    publish_qos: int = None
+    max_responder_threads: int = None
+    log_mqtt: bool = None
+
+def parse_responder_config(config_dict, logger):
+    ''' Parse the responder's configuration options. '''
+    client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
+
+    enabled = to_bool(config_dict.get('MQTTReplicate', {})
+                      .get('Responder', {})
+                      .get('enable', True))
+    if not enabled:
+        return MQTTResponderConfig(client_id=client_id, enabled=False)
+
+    service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
+    exclude_keys = ['password']
+    sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
+    logger.logdbg(f"sanitized configuration removed {exclude_keys}")
+    logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
+
+    if len(service_dict.sections) > 1:
+        raise AttributeError("Only one instance is allowed.")
+
+    if not service_dict.sections:
+        raise AttributeError("At least one instance is required.")
+
+    instance_name = service_dict.sections[0]
+    throttle_count = to_int(service_dict.get('throttle_count', 1000))
+
+    return MQTTResponderConfig(
+        client_id=client_id,
+        enabled=True,
+        instance_name=instance_name,
+        request_topic=service_dict.get('request_topic', f'{REQUEST_TOPIC}/{instance_name}'),
+        archive_topic=service_dict.get('archive_topic', ARCHIVE_TOPIC),
+        delta=to_int(service_dict.get('delta', 60)),
+        throttle_count=throttle_count,
+        throttle_sleep=to_int(service_dict.get('throttle_sleep', 1)),
+        log_msg_count=to_int(service_dict.get('log_msg_count', throttle_count)),
+        host=service_dict.get('host', 'localhost'),
+        port=to_int(service_dict.get('port', 1883)),
+        keepalive=to_int(service_dict.get('keepalive', 60)),
+        subscribe_qos=to_int(service_dict.get('subscribe_qos', 1)),
+        publish_qos=to_int(service_dict.get('publish_qos', 1)),
+        max_responder_threads=to_int(service_dict.get('max_responder_threads', 1)),
+        log_mqtt=to_bool(service_dict.get('log_mqtt', False)),
+    )
+
 class MQTTResponder(weewx.engine.StdService):
+    # (service state) pylint: disable=too-many-instance-attributes
     ''' The "server" that sends the replication data to the requester/client. '''
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
-        self.client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
         self.logger = Logger()
         self.logger.loginf(f"version: {VERSION}")
+
+        self.config = parse_responder_config(config_dict, self.logger)
+        self.client_id = self.config.client_id
         self.logger.logdbg(f"Responder main MQTT client is: {self.client_id}")
 
-        self.enabled = to_bool(config_dict.get('MQTTReplicate', {})
-                               .get('Responder', {})
-                               .get('enable', True))
-
+        self.enabled = self.config.enabled
         if not self.enabled:
             self.logger.loginf("Responder not enabled, exiting.")
             return
 
-        service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
-        exclude_keys = ['password']
-        sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
-        self.logger.logdbg(f"sanitized configuration removed {exclude_keys}")
-        self.logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
-
-        if len(service_dict.sections) > 1:
-            raise AttributeError("Only one instance is allowed.")
-
-        if not service_dict.sections:
-            raise AttributeError("At least one instance is required.")
-
-        instance_name = service_dict.sections[0]
-        self.request_topic = service_dict.get('request_topic', f'{REQUEST_TOPIC}/{instance_name}')
-        self.archive_topic = service_dict.get('archive_topic', ARCHIVE_TOPIC)
-        delta = to_int(service_dict.get('delta', 60))
-        throttle_count = to_int(service_dict.get('throttle_count', 1000))
-        throttle_sleep = to_int(service_dict.get('throttle_sleep', 1))
-        log_msg_count = to_int(service_dict.get('log_msg_count', throttle_count))
-        host = service_dict.get('host', 'localhost')
-        port = to_int(service_dict.get('port', 1883))
-        keepalive = to_int(service_dict.get('keepalive', 60))
-        self.subscribe_qos = to_int(service_dict.get('subscribe_qos', 1))
-        self.publish_qos = to_int(service_dict.get('publish_qos', 1))
-        self.max_responder_threads = to_int(service_dict.get('max_responder_threads', 1))
-        log_mqtt = to_bool(service_dict.get('log_mqtt', False))
-
         self.main_data_binding = None
         self.data_bindings = {}
-        for data_binding_name, data_binding in service_dict[instance_name].items():
-            data_binding_key = f"{instance_name}/{data_binding_name}"
+        service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
+        for data_binding_name, data_binding in service_dict[self.config.instance_name].items():
+            data_binding_key = f"{self.config.instance_name}/{data_binding_name}"
             self.data_bindings[data_binding_key] = {}
-            self.data_bindings[data_binding_key]['delta'] = data_binding.get('delta', delta)
+            self.data_bindings[data_binding_key]['delta'] = data_binding.get('delta', self.config.delta)
             self.data_bindings[data_binding_key]['type'] = data_binding.get('type', 'secondary')
             manager_dict = weewx.manager.get_manager_dict_from_config(config_dict,
                                                                       data_binding_name)
@@ -320,20 +360,12 @@ class MQTTResponder(weewx.engine.StdService):
         self.threads = []
         # A shared event, so a thread pool thread can signal that it has failed.
         self.thread_error = threading.Event()
-        for _i in range(self.max_responder_threads):
+        for _i in range(self.config.max_responder_threads):
             thread = MQTTResponderThread(self.logger,
                                          self.thread_error,
                                          self.data_queue,
-                                         log_msg_count,
-                                         throttle_count,
-                                         throttle_sleep,
-                                         delta,
-                                         config_dict,
-                                         log_mqtt,
-                                         host,
-                                         port,
-                                         keepalive,
-                                         self.publish_qos)
+                                         self.config,
+                                         config_dict)
             thread.start()
             self.threads.append(thread)
 
@@ -341,15 +373,9 @@ class MQTTResponder(weewx.engine.StdService):
 
         self.loop_thread = MQTTResponderLoopThread(self.logger,
                                                    self.mqtt_client,
-                                                   self.client_id,
-                                                   log_mqtt,
+                                                   self.config,
                                                    self.data_queue,
-                                                   self.data_bindings,
-                                                   self.request_topic,
-                                                   self.subscribe_qos,
-                                                   host,
-                                                   port,
-                                                   keepalive)
+                                                   self.data_bindings)
         self.loop_thread.start()
 
     def shutDown(self):
@@ -367,7 +393,7 @@ class MQTTResponder(weewx.engine.StdService):
         else:
             self.logger.loginf(f"Shut down {self.loop_thread.native_id} thread")
 
-        for _ in range(self.max_responder_threads):
+        for _ in range(self.config.max_responder_threads):
             self.data_queue.put(None)
 
         for thread in self.threads:
@@ -392,13 +418,13 @@ class MQTTResponder(weewx.engine.StdService):
             record = data_binding['dbmanager'].getRecord(timestamp, max_delta=data_binding['delta'])
             if record:
                 payload = json.dumps(record)
-                self.publish_payload(data_binding_name, self.publish_qos, payload)
+                self.publish_payload(data_binding_name, self.config.publish_qos, payload)
             else:
                 self.logger.loginf(f'No record found for binding {data_binding_name} '
                                    f'and timestamp {timestamp}.')
 
         payload = json.dumps(event.record)
-        self.publish_payload(self.main_data_binding, self.publish_qos, payload)
+        self.publish_payload(self.main_data_binding, self.config.publish_qos, payload)
 
     def publish_payload(self, data_binding_name, qos, payload):
         ''' Publish the record. '''
@@ -406,8 +432,8 @@ class MQTTResponder(weewx.engine.StdService):
         properties.UserProperty = [
             ('data_binding', data_binding_name)
         ]
-        self.logger.logdbg(f'Publishing on topic {self.archive_topic}, properties {properties}, payload: {payload}.')
-        self.mqtt_client.publish(self.archive_topic,
+        self.logger.logdbg(f'Publishing on topic {self.config.archive_topic}, properties {properties}, payload: {payload}.')
+        self.mqtt_client.publish(self.config.archive_topic,
                                  payload,
                                  qos,
                                  False,
@@ -417,27 +443,19 @@ class MQTTResponderLoopThread(threading.Thread):
     def __init__(self,
                  logger,
                  mqtt_client,
-                 client_id,
-                 log_mqtt,
+                 config,
                  data_queue,
-                 data_bindings,
-                 request_topic,
-                 subscribe_qos,
-                 host,
-                 port,
-                 keepalive):
+                 data_bindings):
         threading.Thread.__init__(self)
         self.thread_id = 0
         self.logger = logger
         self.mqtt_client = mqtt_client
-        self.client_id = client_id
+        self.config = config
         self.data_queue = data_queue
         self.data_bindings = data_bindings
-        self.request_topic = request_topic
-        self.subscribe_qos = subscribe_qos
 
         self.mqtt_client.on_connect = self._on_connect
-        if log_mqtt:
+        if config.log_mqtt:
             self.mqtt_client.on_log = self._on_log
         self.mqtt_client.on_message = self._on_message
 
@@ -448,7 +466,7 @@ class MQTTResponderLoopThread(threading.Thread):
             paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
             paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
         }
-        mqtt_client.connect(host, port, keepalive)
+        mqtt_client.connect(config.host, config.port, config.keepalive)
 
     def run(self):
         self.thread_id = threading.get_native_id()
@@ -457,13 +475,13 @@ class MQTTResponderLoopThread(threading.Thread):
         self.mqtt_client.loop_forever()
 
     def _on_connect(self, _userdata):
-        (result, mid) = self.mqtt_client.subscribe(self.request_topic, self.subscribe_qos)
-        self.logger.loginf(f"Subscribing to topic {self.request_topic} "
+        (result, mid) = self.mqtt_client.subscribe(self.config.request_topic, self.config.subscribe_qos)
+        self.logger.loginf(f"Subscribing to topic {self.config.request_topic} "
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
     def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger.get(level, self.logger.loginf)(f"({self.client_id}) MQTT log: {msg}")
+        self.mqtt_logger.get(level, self.logger.loginf)(f"({self.config.client_id}) MQTT log: {msg}")
 
     def _on_message(self, _userdata, msg):
         try:
@@ -523,34 +541,21 @@ class MQTTResponderLoopThread(threading.Thread):
             self.mqtt_client.disconnect()
 
 class MQTTResponderThread(threading.Thread):
+    # (thread state) pylint: disable=too-many-instance-attributes
     '''  Publish the requested data. '''
     def __init__(self,
                  logger,
                  thread_error,
                  data_queue,
-                 log_msg_count,
-                 throttle_count,
-                 throttle_sleep,
-                 delta,
-                 config_dict,
-                 log_mqtt,
-                 host,
-                 port,
-                 keepalive,
-                 publish_qos):
+                 config,
+                 config_dict):
         threading.Thread.__init__(self)
         self.thread_id = threading.get_native_id()
         self.logger = logger
         self.thread_error = thread_error
-        self.throttle_count = throttle_count
-        self.throttle_sleep = throttle_sleep
-        self.log_msg_count = log_msg_count
         self.data_queue = data_queue
+        self.config = config
         self.config_dict = config_dict
-        self.host = host
-        self.port = port
-        self.keepalive = keepalive
-        self.publish_qos = publish_qos
         self.client_id = 'MQTTReplicateRespondThread-' + str(random.randint(1000, 9999))
 
         self.logger.logdbg(f"Responder catchup MQTT client is: {self.client_id}")
@@ -558,12 +563,11 @@ class MQTTResponderThread(threading.Thread):
         self.data_bindings = {}
 
         service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
-        instance_name = service_dict.sections[0]
 
-        for data_binding_name, data_binding in service_dict[instance_name].items():
-            data_binding_key = f"{instance_name}/{data_binding_name}"
+        for data_binding_name, data_binding in service_dict[config.instance_name].items():
+            data_binding_key = f"{config.instance_name}/{data_binding_name}"
             self.data_bindings[data_binding_key] = {}
-            self.data_bindings[data_binding_key]['delta'] = data_binding.get('delta', delta)
+            self.data_bindings[data_binding_key]['delta'] = data_binding.get('delta', config.delta)
             self.data_bindings[data_binding_key]['type'] = data_binding.get('type', 'secondary')
             self.data_bindings[data_binding_key]['manager_dict'] = \
                 weewx.manager.get_manager_dict_from_config(config_dict, data_binding_name)
@@ -580,7 +584,7 @@ class MQTTResponderThread(threading.Thread):
         self.mqtt_client = MQTTClient.get_client(self.logger, self.client_id, None)
 
         self.mqtt_client.on_connect = self._on_connect
-        if log_mqtt:
+        if config.log_mqtt:
             self.mqtt_client.on_log = self._on_log
         self.mqtt_client.on_publish = self._on_publish
 
@@ -598,12 +602,12 @@ class MQTTResponderThread(threading.Thread):
                     self.logger.logdbg(f"In MQTTResponderThread.run request: {data}")
 
                     # ToDo: Wait for connection?
-                    self.mqtt_client.connect(self.host, self.port, self.keepalive)
+                    self.mqtt_client.connect(self.config.host, self.config.port, self.config.keepalive)
 
                     record_count = 0
                     self.logger.logdbg(f'Responding/publishing topic {data["topic"]} '
                                        f'data_binding {data["data_binding"]} '
-                                       f'qos {self.publish_qos} '
+                                       f'qos {self.config.publish_qos} '
                                        f'properties {data["properties"]}')
                     for record in self.data_bindings[data['data_binding']]['dbmanager']\
                             .genBatchRecords(data['start_timestamp']):
@@ -612,7 +616,7 @@ class MQTTResponderThread(threading.Thread):
                         self.logger.logdbg(f"Responding/publishing on topic {data['topic']}, properties {data['properties']}, payload: {payload}.")
                         mqtt_message_info = self.mqtt_client.publish(data['topic'],
                                                                      payload,
-                                                                     self.publish_qos,
+                                                                     self.config.publish_qos,
                                                                      False,
                                                                      properties=data['properties'])
                         if mqtt_message_info.rc > 0:
@@ -633,18 +637,18 @@ class MQTTResponderThread(threading.Thread):
                         else:
                             self.mids[mqtt_message_info.mid] = {}
                             self.mids[mqtt_message_info.mid]['time_stamp'] = time.time()
-                            self.mids[mqtt_message_info.mid]['qos'] = self.publish_qos
+                            self.mids[mqtt_message_info.mid]['qos'] = self.config.publish_qos
 
-                        if record_count % self.log_msg_count == 0:
+                        if record_count % self.config.log_msg_count == 0:
                             self.logger.loginf(f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
                                                "have been published.")
 
-                        if record_count % self.throttle_count == 0:
-                            time.sleep(self.throttle_sleep)
+                        if record_count % self.config.throttle_count == 0:
+                            time.sleep(self.config.throttle_sleep)
 
                     self.logger.loginf(f'Responding/publishing topic {data["topic"]} '
                                        f'data_binding {data["data_binding"]} '
-                                       f'qos {self.publish_qos} '
+                                       f'qos {self.config.publish_qos} '
                                        f'properties {data["properties"]} '
                                        f'with records: {record_count}.')
                     # Wait for all messages to be published.
@@ -652,8 +656,8 @@ class MQTTResponderThread(threading.Thread):
                     # does not hang the thread forever.
                     wait_start = time.time()
                     while self.mids:
-                        if time.time() - wait_start > self.keepalive:
-                            self.logger.logerr(f'Timed out after {self.keepalive} seconds '
+                        if time.time() - wait_start > self.config.keepalive:
+                            self.logger.logerr(f'Timed out after {self.config.keepalive} seconds '
                                                f'waiting for {len(self.mids)} messages '
                                                f'to be published on topic {data["topic"]}.')
                             break
@@ -664,7 +668,7 @@ class MQTTResponderThread(threading.Thread):
             except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
                 self.logger.logerr(f'Responding/publishing topic {data["topic"]} '
                                    f'data_binding {data["data_binding"]} '
-                                   f'qos {self.publish_qos} '
+                                   f'qos {self.config.publish_qos} '
                                    f'properties {data["properties"]} '
                                    f"failed with {type(exception)} and reason {exception}.")
                 self.logger.logerr(f"{traceback.format_exc()}")

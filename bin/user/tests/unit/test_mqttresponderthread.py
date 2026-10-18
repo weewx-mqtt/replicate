@@ -49,19 +49,14 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_mqtt_client = mock.Mock()
                         mock_client.get_client.return_value = mock_mqtt_client
 
+                        thread_config = user.mqttreplicate.MQTTResponderConfig(
+                            instance_name=instance_name,
+                            log_mqtt=True)
                         SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                      None,
                                                                      None,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     config,
-                                                                     True,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None)
+                                                                     thread_config,
+                                                                     config)
 
             client_id = f'MQTTReplicateRespondThread-{random_int}'
             mock_client.get_client.assert_called_once_with(SUT.logger, client_id, None)
@@ -103,19 +98,14 @@ class TestMQTTResponderThread(unittest.TestCase):
                     mock_manager.get_manager_dict_from_config.return_value = helpers.random_string()
                     mock_client.get_client.return_value = mock.Mock()
 
+                    thread_config = user.mqttreplicate.MQTTResponderConfig(
+                        instance_name=instance_name,
+                        log_mqtt=True)
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                  None,
                                                                  None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 config,
-                                                                 True,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                                                                 thread_config,
+                                                                 config)
 
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_INFO],
                                  mock_logger.loginf)
@@ -155,19 +145,14 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_manager.get_manager_dict_from_config.return_value = helpers.random_string()
                         mock_client.get_client.return_value = mock.Mock()
 
+                        thread_config = user.mqttreplicate.MQTTResponderConfig(
+                            instance_name=instance_name,
+                            log_mqtt=True)
                         SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                      None,
                                                                      None,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     config,
-                                                                     True,
-                                                                     None,
-                                                                     None,
-                                                                     None,
-                                                                     None)
+                                                                     thread_config,
+                                                                     config)
 
                         client_id = f'MQTTReplicateRespondThread-{random_int}'
 
@@ -224,19 +209,20 @@ class TestMQTTResponderThread(unittest.TestCase):
 
                         mock_thread_error = mock.Mock()
 
+                        thread_config = user.mqttreplicate.MQTTResponderConfig(
+                            instance_name=instance_name,
+                            log_msg_count=random.randint(2, 100),
+                            throttle_count=1000,
+                            throttle_sleep=1,
+                            host=host,
+                            port=port,
+                            keepalive=keepalive,
+                            publish_qos=publish_qos)
                         SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                      mock_thread_error,
                                                                      mock_data_queue,
-                                                                     random.randint(2, 100),
-                                                                     1000,
-                                                                     1,
-                                                                     None,
-                                                                     config,
-                                                                     None,
-                                                                     host,
-                                                                     port,
-                                                                     keepalive,
-                                                                     publish_qos)
+                                                                     thread_config,
+                                                                     config)
 
                         msg_dict = {
                             'rc': 0,
@@ -313,19 +299,20 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_data_queue = mock.Mock()
                         mock_data_queue.get.side_effect = [data, None]
 
+                        thread_config = user.mqttreplicate.MQTTResponderConfig(
+                            instance_name=instance_name,
+                            log_msg_count=random.randint(2, 100),
+                            throttle_count=1000,
+                            throttle_sleep=1,
+                            host=host,
+                            port=port,
+                            keepalive=keepalive,
+                            publish_qos=publish_qos)
                         SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                      mock_thread_error,
                                                                      mock_data_queue,
-                                                                     random.randint(2, 100),
-                                                                     1000,
-                                                                     1,
-                                                                     None,
-                                                                     config,
-                                                                     None,
-                                                                     host,
-                                                                     port,
-                                                                     keepalive,
-                                                                     publish_qos)
+                                                                     thread_config,
+                                                                     config)
 
                         msg_dict = {
                             'rc': 0,
@@ -383,19 +370,12 @@ class TestMQTTResponderThread(unittest.TestCase):
                     }
                     mock_data_queue = mock.Mock()
 
+                    thread_config = user.mqttreplicate.MQTTResponderConfig(instance_name=instance_name)
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                  mock_thread_error,
                                                                  mock_data_queue,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 config,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                                                                 thread_config,
+                                                                 config)
 
                     data = {
                         'topic': helpers.random_string(),
@@ -415,10 +395,11 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_on_publish_all_responses_published(self):
         mock_logger = mock.Mock()
+        instance_name = helpers.random_string()
         config_dict = {
             'MQTTReplicate': {
                 'Responder': {
-                    helpers.random_string(): {
+                    instance_name: {
                         helpers.random_string(): {
                         }
                     }
@@ -435,19 +416,12 @@ class TestMQTTResponderThread(unittest.TestCase):
                     mock_mqtt_client = mock.Mock()
                     mock_client.get_client.return_value = mock_mqtt_client
 
+                    thread_config = user.mqttreplicate.MQTTResponderConfig(instance_name=instance_name)
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                  None,
                                                                  None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 config,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                                                                 thread_config,
+                                                                 config)
 
             mid = random.randint(1, 99)
             SUT.mids[mid] = {
@@ -461,10 +435,11 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_on_publish_still_publishing(self):
         mock_logger = mock.Mock()
+        instance_name = helpers.random_string()
         config_dict = {
             'MQTTReplicate': {
                 'Responder': {
-                    helpers.random_string(): {
+                    instance_name: {
                         helpers.random_string(): {
                         }
                     }
@@ -481,19 +456,12 @@ class TestMQTTResponderThread(unittest.TestCase):
                     mock_mqtt_client = mock.Mock()
                     mock_client.get_client.return_value = mock_mqtt_client
 
+                    thread_config = user.mqttreplicate.MQTTResponderConfig(instance_name=instance_name)
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
                                                                  None,
                                                                  None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 config,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None)
+                                                                 thread_config,
+                                                                 config)
 
             mid = random.randint(1, 99)
             SUT.mids[mid] = {

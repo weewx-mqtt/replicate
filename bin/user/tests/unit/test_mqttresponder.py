@@ -75,29 +75,28 @@ class TestMQTTResponder(unittest.TestCase):
                                         mock_responder_thread.assert_called_once_with(mock_logger(),
                                                                                       SUT.thread_error,
                                                                                       mock_queue(),
-                                                                                      1000,
-                                                                                      1000,
-                                                                                      1,
-                                                                                      60,
-                                                                                      config,
-                                                                                      True,
-                                                                                      'localhost',
-                                                                                      1883,
-                                                                                      60,
-                                                                                      1)
+                                                                                      SUT.config,
+                                                                                      config)
+                                        # The parsed options reach the thread through the config object.
+                                        self.assertEqual(SUT.config.instance_name, instance_name)
+                                        self.assertEqual(SUT.config.log_msg_count, 1000)
+                                        self.assertEqual(SUT.config.throttle_count, 1000)
+                                        self.assertEqual(SUT.config.throttle_sleep, 1)
+                                        self.assertEqual(SUT.config.delta, 60)
+                                        self.assertTrue(SUT.config.log_mqtt)
+                                        self.assertEqual(SUT.config.host, 'localhost')
+                                        self.assertEqual(SUT.config.port, 1883)
+                                        self.assertEqual(SUT.config.keepalive, 60)
+                                        self.assertEqual(SUT.config.publish_qos, 1)
                                         mock_responder_thread().start.assert_called_once_with()
 
                                         mock_responder_loop_thread.assert_called_once_with(mock_logger(),
                                                                                            mock_client,
-                                                                                           client_id,
-                                                                                           True,
+                                                                                           SUT.config,
                                                                                            mock_queue(),
-                                                                                           data_bindings,
-                                                                                           f'replicate/request/{instance_name}',
-                                                                                           1,
-                                                                                           'localhost',
-                                                                                           1883,
-                                                                                           60)
+                                                                                           data_bindings)
+                                        self.assertEqual(SUT.config.client_id, client_id)
+                                        self.assertEqual(SUT.config.request_topic, f'replicate/request/{instance_name}')
                                         mock_responder_loop_thread().start.assert_called_once_with()
 
                                         self.assertDictEqual(SUT.data_bindings, data_bindings)
