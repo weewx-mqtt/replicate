@@ -785,41 +785,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
         self.main_data_binding = None
         self.data_bindings = {}
-
-        stn_dict = config_dict['MQTTReplicate']['Requester']
-        for instance_name in stn_dict.sections:
-            for primary_name, binding in stn_dict[instance_name].items():
-                secondary_name = binding['secondary_data_binding']
-                data_binding_key = f'{instance_name}/{primary_name}'
-                self.data_bindings[data_binding_key] = {}
-                self.data_bindings[data_binding_key]['request_topic'] = (f'{self.config.request_topic}/'
-                                                                         f'{instance_name}')
-                self.data_bindings[data_binding_key]['type'] = binding.get('type', 'secondary')
-                self.data_bindings[data_binding_key]['manager_dict'] = \
-                    weewx.manager.get_manager_dict_from_config(config_dict, secondary_name)
-                # 5/1/2024 - The DBBinder is instantiated after the driver
-                # db_manager = engine.db_binder.get_manager(data_binding=secondary_name,
-                #                                          initialize=False)
-                db_manager = \
-                    weewx.manager.open_manager(self.data_bindings[data_binding_key]['manager_dict'],
-                                               initialize=binding.get('initialize', True))
-
-                self.data_bindings[data_binding_key]['last_good_timestamp'] = \
-                    db_manager.lastGoodStamp()
-                if self.data_bindings[data_binding_key]['last_good_timestamp'] is None:
-                    self.data_bindings[data_binding_key]['last_good_timestamp'] = 0
-
-                self.data_bindings[data_binding_key]['dbmanager'] = None
-                if self.data_bindings[data_binding_key]['type'] == 'main':
-                    if self.main_data_binding is not None:
-                        raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
-                    self.main_data_binding = data_binding_key
-
-        self.logger.logdbg(f"data bindings are: {self.data_bindings}")
-
-        if self.main_data_binding is None:
-            raise ValueError("No 'main' data bindings found")
-        self.logger.logdbg(f"main data bindings is: {self.main_data_binding}")
+        self._build_data_bindings(config_dict)
 
         self.mqtt_client = MQTTClient.get_client(self.logger, self.client_id, None)
 
@@ -838,6 +804,51 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
         # Request any possible missing records
         # Do it now, so hopefully queue is primed when genStartupRecords is called
+        self._request_missing_records()
+
+    def _build_data_bindings(self, config_dict):
+        ''' Build the data bindings and validate the 'main' binding. '''
+        stn_dict = config_dict['MQTTReplicate']['Requester']
+        for instance_name in stn_dict.sections:
+            for primary_name, binding in stn_dict[instance_name].items():
+                self._add_data_binding(config_dict, instance_name, primary_name, binding)
+
+        self.logger.logdbg(f"data bindings are: {self.data_bindings}")
+
+        if self.main_data_binding is None:
+            raise ValueError("No 'main' data bindings found")
+        self.logger.logdbg(f"main data bindings is: {self.main_data_binding}")
+
+    def _add_data_binding(self, config_dict, instance_name, primary_name, binding):
+        ''' Add one data binding, tracking the 'main' binding. '''
+        secondary_name = binding['secondary_data_binding']
+        data_binding_key = f'{instance_name}/{primary_name}'
+        self.data_bindings[data_binding_key] = {}
+        self.data_bindings[data_binding_key]['request_topic'] = (f'{self.config.request_topic}/'
+                                                                 f'{instance_name}')
+        self.data_bindings[data_binding_key]['type'] = binding.get('type', 'secondary')
+        self.data_bindings[data_binding_key]['manager_dict'] = \
+            weewx.manager.get_manager_dict_from_config(config_dict, secondary_name)
+        # 5/1/2024 - The DBBinder is instantiated after the driver
+        # db_manager = engine.db_binder.get_manager(data_binding=secondary_name,
+        #                                          initialize=False)
+        db_manager = \
+            weewx.manager.open_manager(self.data_bindings[data_binding_key]['manager_dict'],
+                                       initialize=binding.get('initialize', True))
+
+        self.data_bindings[data_binding_key]['last_good_timestamp'] = \
+            db_manager.lastGoodStamp()
+        if self.data_bindings[data_binding_key]['last_good_timestamp'] is None:
+            self.data_bindings[data_binding_key]['last_good_timestamp'] = 0
+
+        self.data_bindings[data_binding_key]['dbmanager'] = None
+        if self.data_bindings[data_binding_key]['type'] == 'main':
+            if self.main_data_binding is not None:
+                raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
+            self.main_data_binding = data_binding_key
+
+    def _request_missing_records(self):
+        ''' Request any records missing from the secondary bindings. '''
         for data_binding_name, data_binding in self.data_bindings.items():
             if data_binding['type'] == 'main':
                 continue
