@@ -695,50 +695,84 @@ def loader(config_dict, engine):
     """ Load and return the driver. """
     return MQTTRequester(config_dict, engine)  # pragma: no cover
 
+@dataclasses.dataclass
+# (configuration object) pylint: disable=too-many-instance-attributes
+class MQTTRequesterConfig:
+    ''' The configuration options for the requester. '''
+    client_id: str = None
+    loop_interval: float = None
+    archive_interval: int = None
+    startup_max_tries: float = None
+    startup_wait_before_retry: float = None
+    archive_max_tries: float = None
+    archive_wait_before_retry: float = None
+    subscribe_qos: int = None
+    publish_qos: int = None
+    archive_topic: str = None
+    response_topic: str = None
+    request_topic: str = None
+    host: str = None
+    port: int = None
+    keepalive: int = None
+    log_mqtt: bool = None
+
+def parse_requester_config(config_dict, logger):
+    ''' Parse the requester's configuration options. '''
+    client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
+
+    stn_dict = config_dict['MQTTReplicate']['Requester']
+    exclude_keys = ['password']
+    sanitized_service_dict = {k: stn_dict[k] for k in set(list(stn_dict.keys())) - set(exclude_keys)}
+    logger.logdbg(f"sanitized configuration removed {exclude_keys}")
+    logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
+
+    response_topic = stn_dict.get('response_topic', RESPONSE_TOPIC)
+    request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
+
+    return MQTTRequesterConfig(
+        client_id=client_id,
+        loop_interval=float(stn_dict.get('loop_interval', 2.5)),
+        archive_interval=to_int(stn_dict.get('archive_interval', 300)),
+        startup_max_tries=float(stn_dict.get('startup_max_tries', 2)),
+        startup_wait_before_retry=float(stn_dict.get('startup_wait_before_retry', 10)),
+        archive_max_tries=float(stn_dict.get('archive_max_tries', 2)),
+        archive_wait_before_retry=float(stn_dict.get('archive_wait_before_retry', 10)),
+        subscribe_qos=to_int(stn_dict.get('subscribe_qos', 1)),
+        publish_qos=to_int(stn_dict.get('publish_qos', 1)),
+        archive_topic=stn_dict.get('archive_topic', ARCHIVE_TOPIC),
+        response_topic=f'{response_topic}/{client_id}',
+        request_topic=request_topic,
+        host=stn_dict.get('host', 'localhost'),
+        port=to_int(stn_dict.get('port', 1883)),
+        keepalive=to_int(stn_dict.get('keepalive', 60)),
+        log_mqtt=stn_dict.get('log_mqtt', False),
+    )
+
 class MQTTRequester(weewx.drivers.AbstractDevice):
     # (methods not used) pylint: disable=abstract-method
+    # (driver state) pylint: disable=too-many-instance-attributes
     ''' The "client" class that data ts replicated to. '''
     def __init__(self, config_dict, _engine):
-        self.client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
-
         self.logger = Logger()
         self.logger.loginf(f"version: {VERSION}")
+
+        self.config = parse_requester_config(config_dict, self.logger)
+        self.client_id = self.config.client_id
         self.logger.logdbg(f"Requester main MQTT client is: {self.client_id}")
 
-        stn_dict = config_dict['MQTTReplicate']['Requester']
-        exclude_keys = ['password']
-        sanitized_service_dict = {k: stn_dict[k] for k in set(list(stn_dict.keys())) - set(exclude_keys)}
-        self.logger.logdbg(f"sanitized configuration removed {exclude_keys}")
-        self.logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
-
         self.the_time = time.time()
-        self.loop_interval = float(stn_dict.get('loop_interval', 2.5))
-        self._archive_interval = to_int(stn_dict.get('archive_interval', 300))
-        self.startup_max_tries = float(stn_dict.get('startup_max_tries', 2))
-        self.startup_wait_before_retry = float(stn_dict.get('startup_wait_before_retry', 10))
-        self.archive_max_tries = float(stn_dict.get('archive_max_tries', 2))
-        self.archive_wait_before_retry = float(stn_dict.get('archive_wait_before_retry', 10))
-        self.subscribe_qos = to_int(stn_dict.get('subscribe_qos', 1))
-        self.publish_qos = to_int(stn_dict.get('publish_qos', 1))
-        self.archive_topic = stn_dict.get('archive_topic', ARCHIVE_TOPIC)
-        host = stn_dict.get('host', 'localhost')
-        port = to_int(stn_dict.get('port', 1883))
-        keepalive = to_int(stn_dict.get('keepalive', 60))
-        log_mqtt = stn_dict.get('log_mqtt', False)
-
-        response_topic = stn_dict.get('response_topic', RESPONSE_TOPIC)
-        self.response_topic = f'{response_topic}/{self.client_id}'
-        request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
+        self.response_topic = self.config.response_topic
 
         self.main_data_binding = None
         self.data_bindings = {}
 
+        stn_dict = config_dict['MQTTReplicate']['Requester']
         for instance_name in stn_dict.sections:
             for primary_name, binding in stn_dict[instance_name].items():
                 secondary_name = binding['secondary_data_binding']
                 data_binding_key = f'{instance_name}/{primary_name}'
                 self.data_bindings[data_binding_key] = {}
-                self.data_bindings[data_binding_key]['request_topic'] = (f'{request_topic}/'
+                self.data_bindings[data_binding_key]['request_topic'] = (f'{self.config.request_topic}/'
                                                                          f'{instance_name}')
                 self.data_bindings[data_binding_key]['type'] = binding.get('type', 'secondary')
                 self.data_bindings[data_binding_key]['manager_dict'] = \
@@ -773,16 +807,9 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
         self.loop_thread = MQTTRequesterLoopThread(self.logger,
                                                    self.mqtt_client,
-                                                   self.client_id,
-                                                   log_mqtt,
+                                                   self.config,
                                                    self.data_queue,
-                                                   self.data_bindings,
-                                                   self.response_topic,
-                                                   self.archive_topic,
-                                                   self.subscribe_qos,
-                                                   host,
-                                                   port,
-                                                   keepalive)
+                                                   self.data_bindings)
         self.loop_thread.start()
 
         self.logger.logdbg("Waiting for subscriptions to be set.")
@@ -795,14 +822,14 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
             if data_binding['type'] == 'main':
                 continue
             self.request_records(data_binding_name,
-                                 self.publish_qos,
+                                 self.config.publish_qos,
                                  data_binding['request_topic'],
                                  data_binding['last_good_timestamp'])
 
         if self.main_data_binding:
             # Request 'main' last, so new_archive_record event fired after other DBs are updated
             self.request_records(self.main_data_binding,
-                                 self.publish_qos,
+                                 self.config.publish_qos,
                                  self.data_bindings[self.main_data_binding]['request_topic'],
                                  self.data_bindings[self.main_data_binding]['last_good_timestamp'])
 
@@ -814,13 +841,13 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     @property
     def archive_interval(self):
         """ The archive interval. """
-        return self._archive_interval
+        return self.config.archive_interval
 
     def genStartupRecords(self, _lastgood_ts):
         record_count = 0
         record = {'dateTime': 0}
-        for record in self.gen_replica_record(self.startup_max_tries,
-                                              self.startup_wait_before_retry):
+        for record in self.gen_replica_record(self.config.startup_max_tries,
+                                              self.config.startup_wait_before_retry):
             record_count += 1
             # ToDo: Make configurable
             if record_count % 1000 == 0:
@@ -831,9 +858,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.logger.loginf(f"Received {record_count} 'catchup' records, {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
 
     def genArchiveRecords(self, _lastgood_ts):
-        for record in self.gen_replica_record(self.archive_max_tries,
-                                              self.archive_wait_before_retry):
-            yield record
+        yield from self.gen_replica_record(self.config.archive_max_tries,
+                                           self.config.archive_wait_before_retry)
 
     def gen_replica_record(self, max_tries, wait_before_retry):
         ''' Generator to return the records that are in the queue. '''
@@ -854,11 +880,11 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         while True:
             if not self.loop_thread.is_alive():
                 raise ThreadError(' Loop thread abnormally ended')
-            sleep_time = self.the_time + self.loop_interval - time.time()
+            sleep_time = self.the_time + self.config.loop_interval - time.time()
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
-            self.the_time += self.loop_interval
+            self.the_time += self.config.loop_interval
             yield {'dateTime': int(self.the_time + 0.5),
                    'usUnits': weewx.US}
 
@@ -887,30 +913,21 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                                  properties=properties)
 
 class MQTTRequesterLoopThread(threading.Thread):
+    # (thread state) pylint: disable=too-many-instance-attributes
     ''' The MQTT 'loop' thread. '''
     def __init__(self,
                  logger,
                  mqtt_client,
-                 client_id,
-                 log_mqtt,
+                 config,
                  data_queue,
-                 data_bindings,
-                 response_topic,
-                 archive_topic,
-                 subscribe_qos,
-                 host,
-                 port,
-                 keepalive):
+                 data_bindings):
         threading.Thread.__init__(self)
         self.thread_id = 0
         self.logger = logger
         self.mqtt_client = mqtt_client
-        self.client_id = client_id
+        self.config = config
         self.data_queue = data_queue
         self.data_bindings = data_bindings
-        self.response_topic = response_topic
-        self.archive_topic = archive_topic
-        self.subscribe_qos = subscribe_qos
 
         self.response_topic_mid = None
         self.subscribed = False
@@ -927,13 +944,13 @@ class MQTTRequesterLoopThread(threading.Thread):
         }
 
         self.mqtt_client.on_connect = self._on_connect
-        if log_mqtt:
+        if config.log_mqtt:
             self.mqtt_client.on_log = self._on_log
         self.mqtt_client.on_message = self._on_message
         self.mqtt_client.on_subscribe = self._on_subscribe
 
         # ToDo: Wait for connection?
-        self.mqtt_client.connect(host, port, keepalive)
+        self.mqtt_client.connect(config.host, config.port, config.keepalive)
 
     def run(self):
         self.thread_id = threading.get_native_id()
@@ -955,19 +972,19 @@ class MQTTRequesterLoopThread(threading.Thread):
         self.logger.loginf("Thread is shut down.")
 
     def _on_connect(self, _userdata):
-        (result, mid) = self.mqtt_client.subscribe(self.response_topic, self.subscribe_qos)
-        self.logger.loginf(f"Subscribing to {self.response_topic} "
+        (result, mid) = self.mqtt_client.subscribe(self.config.response_topic, self.config.subscribe_qos)
+        self.logger.loginf(f"Subscribing to {self.config.response_topic} "
                            f"has a mid {int(mid)} "
                            f"and result code {int(result)}")
         self.response_topic_mid = mid
 
-        (result, mid) = self.mqtt_client.subscribe(self.archive_topic, self.subscribe_qos)
-        self.logger.loginf(f"Subscribing for archive records on {self.archive_topic} "
+        (result, mid) = self.mqtt_client.subscribe(self.config.archive_topic, self.config.subscribe_qos)
+        self.logger.loginf(f"Subscribing for archive records on {self.config.archive_topic} "
                            f"has a mid {int(mid)} "
                            f"and result code {int(result)}")
 
     def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger.get(level, self.logger.loginf)(f"({self.client_id}) MQTT log: {msg}")
+        self.mqtt_logger.get(level, self.logger.loginf)(f"({self.config.client_id}) MQTT log: {msg}")
 
     def _on_message(self, _userdata, msg):
         try:
