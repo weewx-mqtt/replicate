@@ -444,9 +444,9 @@ class MQTTResponderLoopThread(threading.Thread):
         self.mqtt_logger = {
             paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,
             paho.mqtt.client.MQTT_LOG_NOTICE: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_ERR: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.loginf
+            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.logerr,
+            paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
+            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
         }
         mqtt_client.connect(host, port, keepalive)
 
@@ -572,9 +572,9 @@ class MQTTResponderThread(threading.Thread):
         self.mqtt_logger = {
             paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,
             paho.mqtt.client.MQTT_LOG_NOTICE: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_ERR: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.loginf
+            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.logerr,
+            paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
+            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
         }
 
         self.mids = {}
@@ -922,9 +922,9 @@ class MQTTRequesterLoopThread(threading.Thread):
         self.mqtt_logger = {
             paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,
             paho.mqtt.client.MQTT_LOG_NOTICE: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_ERR: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.loginf
+            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.logerr,
+            paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
+            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
         }
 
         self.mqtt_client.on_connect = self._on_connect
