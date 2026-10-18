@@ -598,73 +598,9 @@ class MQTTResponderThread(threading.Thread):
         while True:
             try:
                 data = self.data_queue.get()
-                if data:
-                    self.logger.logdbg(f"In MQTTResponderThread.run request: {data}")
-
-                    # ToDo: Wait for connection?
-                    self.mqtt_client.connect(self.config.host, self.config.port, self.config.keepalive)
-
-                    record_count = 0
-                    self.logger.logdbg(f'Responding/publishing topic {data["topic"]} '
-                                       f'data_binding {data["data_binding"]} '
-                                       f'qos {self.config.publish_qos} '
-                                       f'properties {data["properties"]}')
-                    for record in self.data_bindings[data['data_binding']]['dbmanager']\
-                            .genBatchRecords(data['start_timestamp']):
-                        record_count += 1
-                        payload = json.dumps(record)
-                        self.logger.logdbg(f"Responding/publishing on topic {data['topic']}, properties {data['properties']}, payload: {payload}.")
-                        mqtt_message_info = self.mqtt_client.publish(data['topic'],
-                                                                     payload,
-                                                                     self.config.publish_qos,
-                                                                     False,
-                                                                     properties=data['properties'])
-                        if mqtt_message_info.rc > 0:
-                            self.logger.logerr(f"Error {int(mqtt_message_info.rc)}, "
-                                               f"{paho.mqtt.client.error_string(mqtt_message_info.rc)} "
-                                               f"responding/publishing on topic {data['topic']}, "
-                                               f"properties {data['properties']}, payload: {payload}.")
-
-                        self.mqtt_client.loop(.1)
-
-                        # Add the message 'mid' to the 'mids collection', self.mids.
-                        # This collection will be monitored (in _on_publish) to know when it safe to disconnect.
-                        # Sometimes on_publish is called before the call returns
-                        # In that case, the 'inflight' mid was added in the on_publish callback.
-                        # So, we remove it here.
-                        if mqtt_message_info.mid in self.mids:
-                            del self.mids[mqtt_message_info.mid]
-                        else:
-                            self.mids[mqtt_message_info.mid] = {}
-                            self.mids[mqtt_message_info.mid]['time_stamp'] = time.time()
-                            self.mids[mqtt_message_info.mid]['qos'] = self.config.publish_qos
-
-                        if record_count % self.config.log_msg_count == 0:
-                            self.logger.loginf(f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
-                                               "have been published.")
-
-                        if record_count % self.config.throttle_count == 0:
-                            time.sleep(self.config.throttle_sleep)
-
-                    self.logger.loginf(f'Responding/publishing topic {data["topic"]} '
-                                       f'data_binding {data["data_binding"]} '
-                                       f'qos {self.config.publish_qos} '
-                                       f'properties {data["properties"]} '
-                                       f'with records: {record_count}.')
-                    # Wait for all messages to be published.
-                    # Bound the wait by the keepalive, so a lost connection
-                    # does not hang the thread forever.
-                    wait_start = time.time()
-                    while self.mids:
-                        if time.time() - wait_start > self.config.keepalive:
-                            self.logger.logerr(f'Timed out after {self.config.keepalive} seconds '
-                                               f'waiting for {len(self.mids)} messages '
-                                               f'to be published on topic {data["topic"]}.')
-                            break
-                        self.mqtt_client.loop(1)
-                    self.mqtt_client.disconnect()
-                else:
+                if not data:
                     break
+                self._respond(data)
             except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
                 self.logger.logerr(f'Responding/publishing topic {data["topic"]} '
                                    f'data_binding {data["data_binding"]} '
@@ -677,6 +613,86 @@ class MQTTResponderThread(threading.Thread):
 
         for _data_binding_key, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
+
+    def _respond(self, data):
+        ''' Respond to one request by publishing its records. '''
+        self.logger.logdbg(f"In MQTTResponderThread.run request: {data}")
+
+        # ToDo: Wait for connection?
+        self.mqtt_client.connect(self.config.host, self.config.port, self.config.keepalive)
+
+        record_count = self._publish_records(data)
+
+        self.logger.loginf(f'Responding/publishing topic {data["topic"]} '
+                           f'data_binding {data["data_binding"]} '
+                           f'qos {self.config.publish_qos} '
+                           f'properties {data["properties"]} '
+                           f'with records: {record_count}.')
+        self._wait_for_publish(data)
+        self.mqtt_client.disconnect()
+
+    def _publish_records(self, data):
+        ''' Publish the batch of records for one request; return the record count. '''
+        record_count = 0
+        self.logger.logdbg(f'Responding/publishing topic {data["topic"]} '
+                           f'data_binding {data["data_binding"]} '
+                           f'qos {self.config.publish_qos} '
+                           f'properties {data["properties"]}')
+        for record in self.data_bindings[data['data_binding']]['dbmanager']\
+                .genBatchRecords(data['start_timestamp']):
+            record_count += 1
+            payload = json.dumps(record)
+            self.logger.logdbg(f"Responding/publishing on topic {data['topic']}, properties {data['properties']}, payload: {payload}.")
+            mqtt_message_info = self.mqtt_client.publish(data['topic'],
+                                                         payload,
+                                                         self.config.publish_qos,
+                                                         False,
+                                                         properties=data['properties'])
+            if mqtt_message_info.rc > 0:
+                self.logger.logerr(f"Error {int(mqtt_message_info.rc)}, "
+                                   f"{paho.mqtt.client.error_string(mqtt_message_info.rc)} "
+                                   f"responding/publishing on topic {data['topic']}, "
+                                   f"properties {data['properties']}, payload: {payload}.")
+
+            self.mqtt_client.loop(.1)
+
+            self._track_mid(mqtt_message_info)
+
+            if record_count % self.config.log_msg_count == 0:
+                self.logger.loginf(f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
+                                   "have been published.")
+
+            if record_count % self.config.throttle_count == 0:
+                time.sleep(self.config.throttle_sleep)
+
+        return record_count
+
+    def _track_mid(self, mqtt_message_info):
+        ''' Record a published message 'mid' until _on_publish reports it done. '''
+        # Add the message 'mid' to the 'mids collection', self.mids.
+        # This collection will be monitored (in _on_publish) to know when it safe to disconnect.
+        # Sometimes on_publish is called before the call returns
+        # In that case, the 'inflight' mid was added in the on_publish callback.
+        # So, we remove it here.
+        if mqtt_message_info.mid in self.mids:
+            del self.mids[mqtt_message_info.mid]
+        else:
+            self.mids[mqtt_message_info.mid] = {}
+            self.mids[mqtt_message_info.mid]['time_stamp'] = time.time()
+            self.mids[mqtt_message_info.mid]['qos'] = self.config.publish_qos
+
+    def _wait_for_publish(self, data):
+        ''' Wait for the outstanding messages to be published. '''
+        # Bound the wait by the keepalive, so a lost connection
+        # does not hang the thread forever.
+        wait_start = time.time()
+        while self.mids:
+            if time.time() - wait_start > self.config.keepalive:
+                self.logger.logerr(f'Timed out after {self.config.keepalive} seconds '
+                                   f'waiting for {len(self.mids)} messages '
+                                   f'to be published on topic {data["topic"]}.')
+                break
+            self.mqtt_client.loop(1)
 
     def _on_connect(self, _userdata):
         pass
