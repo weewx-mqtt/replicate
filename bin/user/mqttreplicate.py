@@ -6,6 +6,7 @@
 ''' Replicate WeeWX dstabases using MQTT request/response functionality.'''
 import abc
 import argparse
+import dataclasses
 import json
 import logging
 import queue
@@ -698,7 +699,7 @@ def loader(config_dict, engine):
 class MQTTRequester(weewx.drivers.AbstractDevice):
     # (methods not used) pylint: disable=abstract-method
     ''' The "client" class that data ts replicated to. '''
-    def __init__(self, config_dict, _engine, update=False):
+    def __init__(self, config_dict, _engine):
         self.client_id = 'MQTTReplicateRequest-' + str(random.randint(1000, 9999))
 
         self.logger = Logger()
@@ -775,7 +776,6 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                                                    self.mqtt_client,
                                                    self.client_id,
                                                    log_mqtt,
-                                                   update,
                                                    self.data_queue,
                                                    self.data_bindings,
                                                    self.response_topic,
@@ -894,7 +894,6 @@ class MQTTRequesterLoopThread(threading.Thread):
                  mqtt_client,
                  client_id,
                  log_mqtt,
-                 update,
                  data_queue,
                  data_bindings,
                  response_topic,
@@ -908,7 +907,6 @@ class MQTTRequesterLoopThread(threading.Thread):
         self.logger = logger
         self.mqtt_client = mqtt_client
         self.client_id = client_id
-        self.update = update
         self.data_queue = data_queue
         self.data_bindings = data_bindings
         self.response_topic = response_topic
