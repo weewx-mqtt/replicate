@@ -765,7 +765,7 @@ def parse_requester_config(config_dict, logger):
         host=stn_dict.get('host', 'localhost'),
         port=to_int(stn_dict.get('port', 1883)),
         keepalive=to_int(stn_dict.get('keepalive', 60)),
-        log_mqtt=stn_dict.get('log_mqtt', False),
+        log_mqtt=to_bool(stn_dict.get('log_mqtt', False)),
     )
 
 class MQTTRequester(weewx.drivers.AbstractDevice):

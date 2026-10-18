@@ -100,6 +100,41 @@ class TestMQTTRequester(unittest.TestCase):
                                     }
                                     self.assertDictEqual(SUT.data_bindings, expected_results)
 
+    def test_init_log_mqtt_string(self):
+        mock_engine = mock.Mock()
+        instance_name = helpers.random_string()
+        primary_name = helpers.random_string()
+        config_dict = {
+            'MQTTReplicate': {
+                'Requester': {
+                    # Config file values arrive as strings; 'False' must not be truthy.
+                    'log_mqtt': 'False',
+                    instance_name: {
+                        primary_name: {
+                            'type': 'main',
+                            'secondary_data_binding': helpers.random_string()
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt'):
+                with mock.patch('user.mqttreplicate.Logger'):
+                    with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
+                        with mock.patch('user.mqttreplicate.MQTTClient'):
+                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
+                                mock_manager.open_manager.return_value = mock.Mock()
+
+                                SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+
+                                self.assertFalse(SUT.config.log_mqtt)
+                                # The parsed value reaches the loop thread's config.
+                                self.assertFalse(mock_requester_thread.call_args[0][2].log_mqtt)
+
     def test_gen_startup_records(self):
         mock_engine = mock.Mock()
         config_dict = {
