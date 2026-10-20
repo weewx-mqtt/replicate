@@ -69,6 +69,9 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
                                                protocol=paho.mqtt.client.MQTTv5,
                                                userdata=userdata)
 
+        # The reconnect delays are not configurable; use the paho defaults.
+        mqttcommon.configure_reconnect_delay(self.client, min_delay=1, max_delay=128)
+
         self._on_connect = None
         self._on_connect_fail = None
         self._on_disconnect = None
