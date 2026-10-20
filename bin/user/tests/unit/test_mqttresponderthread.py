@@ -47,7 +47,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_manager.get_manager_dict_from_config.return_value = manager_dict
 
                         mock_mqtt_client = mock.Mock()
-                        mock_client.get_client.return_value = mock_mqtt_client
+                        mock_client.return_value = mock_mqtt_client
 
                         thread_config = user.mqttreplicate.MQTTResponderConfig(
                             instance_name=instance_name,
@@ -59,7 +59,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                                                                      config)
 
             client_id = f'MQTTReplicateRespondThread-{random_int}'
-            mock_client.get_client.assert_called_once_with(SUT.logger, client_id, None)
+            mock_client.assert_called_once_with(SUT.logger, client_id, None)
 
             self.assertEqual(mock_mqtt_client.on_connect, SUT._on_connect)
             self.assertEqual(mock_mqtt_client.on_publish, SUT._on_publish)
@@ -96,7 +96,7 @@ class TestMQTTResponderThread(unittest.TestCase):
             with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                 with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
                     mock_manager.get_manager_dict_from_config.return_value = helpers.random_string()
-                    mock_client.get_client.return_value = mock.Mock()
+                    mock_client.return_value = mock.Mock()
 
                     thread_config = user.mqttreplicate.MQTTResponderConfig(
                         instance_name=instance_name,
@@ -112,7 +112,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_NOTICE],
                                  mock_logger.loginf)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_WARNING],
-                                 mock_logger.logerr)
+                                 mock_logger.loginf)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR],
                                  mock_logger.logerr)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_DEBUG],
@@ -143,7 +143,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                 with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
                     with mock.patch('user.mqttreplicate.random.randint', return_value=random_int):
                         mock_manager.get_manager_dict_from_config.return_value = helpers.random_string()
-                        mock_client.get_client.return_value = mock.Mock()
+                        mock_client.return_value = mock.Mock()
 
                         thread_config = user.mqttreplicate.MQTTResponderConfig(
                             instance_name=instance_name,
@@ -205,7 +205,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_data_queue.get.side_effect = [data, None]
 
                         mock_mqtt_client = mock.Mock()
-                        mock_client.get_client.return_value = mock_mqtt_client
+                        mock_client.return_value = mock_mqtt_client
 
                         mock_thread_error = mock.Mock()
 
@@ -286,7 +286,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                         mock_db_manager.genBatchRecords.return_value = [{}]
 
                         mock_mqtt_client = mock.Mock()
-                        mock_client.get_client.return_value = mock_mqtt_client
+                        mock_client.return_value = mock_mqtt_client
 
                         mock_thread_error = mock.Mock()
 
@@ -358,7 +358,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                     mock_db_manager.genBatchRecords.return_value = [{}]
 
                     mock_mqtt_client = mock.Mock()
-                    mock_client.get_client.return_value = mock_mqtt_client
+                    mock_client.return_value = mock_mqtt_client
 
                     mock_thread_error = mock.Mock()
 
@@ -414,7 +414,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                 with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
 
                     mock_mqtt_client = mock.Mock()
-                    mock_client.get_client.return_value = mock_mqtt_client
+                    mock_client.return_value = mock_mqtt_client
 
                     thread_config = user.mqttreplicate.MQTTResponderConfig(instance_name=instance_name)
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,
@@ -454,7 +454,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                 with mock.patch('user.mqttreplicate.MQTTClient') as mock_client:
 
                     mock_mqtt_client = mock.Mock()
-                    mock_client.get_client.return_value = mock_mqtt_client
+                    mock_client.return_value = mock_mqtt_client
 
                     thread_config = user.mqttreplicate.MQTTResponderConfig(instance_name=instance_name)
                     SUT = user.mqttreplicate.MQTTResponderThread(mock_logger,

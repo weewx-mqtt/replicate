@@ -4,7 +4,6 @@
 #    See the file LICENSE.txt for your full rights.
 #
 ''' Replicate WeeWX dstabases using MQTT request/response functionality.'''
-import abc
 import argparse
 import dataclasses
 import json
@@ -27,6 +26,8 @@ import weewx.drivers
 import weewx.engine
 
 from weeutil.weeutil import to_bool, to_int
+
+from user import mqttcommon
 
 VERSION = "1.0.0-rc03c"
 DRIVER_NAME = 'MQTTRequester'
@@ -55,51 +56,18 @@ class Logger:  # pragma: no cover
         """ log error messages """
         self.log.error("(%s) %s", threading.get_native_id(), msg)
 
-class MQTTClient(abc.ABC):
-    ''' Abstract class that wraps paho mqtt to protect from breaking changes. '''
-    @classmethod
-    def get_client(cls, logger, client_id, userdata):
-        ''' Factory method to get appropriate MQTTClient for paho mqtt version. '''
-        if hasattr(paho.mqtt.client, 'CallbackAPIVersion'):
-            return MQTTClientV2(logger, client_id, userdata)
-
-        raise ValueError("paho mqtt v2 is required.")
-
-    def connect(self, host, port, keepalive):
-        ''' Connect to the MQTT server. '''
-        raise NotImplementedError("Method 'connect' is not implemented")
-
-    def disconnect(self):
-        ''' Connect to the MQTT server. '''
-        raise NotImplementedError("Method 'disconnect' is not implemented")
-
-    def loop_forever(self):
-        ''' Connect to the MQTT server. '''
-        raise NotImplementedError("Method 'loop_forever' is not implemented")
-
-    def loop(self, blocking_time):
-        ''' Connect to the MQTT server. '''
-        raise NotImplementedError("Method 'loop_forever' is not implemented")
-
-    def subscribe(self, topic, qos):
-        ''' Subscribe to the MQTT topic. '''
-        raise NotImplementedError("Method 'subscribe' is not implemented")
-
-    def publish(self, topic, data, qos, retain, properties=None):
-        ''' Publish the MQTT message. '''
-        raise NotImplementedError("Method 'publish' is not implemented")
-
-class MQTTClientV2(MQTTClient):
-    # (paho callback adapter) pylint: disable=too-many-instance-attributes
-    ''' MQTTClient that communicates with paho mqtt v2. '''
+class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
+    ''' Wrap paho mqtt to protect from breaking changes. '''
     def __init__(self, logger, client_id, userdata):
+        if not mqttcommon.has_v2_api():
+            raise ValueError("paho mqtt v2 is required.")
+
         self.logger = logger
         self.client_id = client_id
-        self.client = paho.mqtt.client.Client(
-            callback_api_version=paho.mqtt.client.CallbackAPIVersion.VERSION2,
-            protocol=paho.mqtt.client.MQTTv5,
-            client_id=self.client_id,
-            userdata=userdata)
+        self.client = mqttcommon.create_client(mqttcommon.API_V2_MQTT5,
+                                               client_id=client_id,
+                                               protocol=paho.mqtt.client.MQTTv5,
+                                               userdata=userdata)
 
         self._on_connect = None
         self._on_connect_fail = None
@@ -233,22 +201,34 @@ class MQTTClientV2(MQTTClient):
     # The wrappers of the  client methods are next
 
     def connect(self, host, port, keepalive):
-        self.client.connect(host, port, keepalive)
+        ''' Connect to the MQTT server. '''
+        mqttcommon.connect(self.client, mqttcommon.API_V2_MQTT5, host=host, port=port, keepalive=keepalive)
 
     def disconnect(self):
+        ''' Disconnect from the MQTT server. '''
         self.client.disconnect()
 
     def loop_forever(self):
+        ''' Run the network loop forever. '''
         self.client.loop_forever()
 
     def loop(self, blocking_time):
+        ''' Run the network loop, checking for new messages every blocking_time. '''
         self.client.loop(blocking_time)
 
     def publish(self, topic, data, qos, retain, properties=None):
+        ''' Publish a MQTT message. '''
         return self.client.publish(topic, data, qos, retain, properties)
 
     def subscribe(self, topic, qos):
+        ''' Subscribe to a MQTT topic. '''
         return self.client.subscribe(topic, qos)
+
+def paho_log_methods(logger):
+    ''' Map the paho mqtt log levels to the logger methods. '''
+    logger_methods = {'DEBUG': 'logdbg', 'INFO': 'loginf', 'ERROR': 'logerr'}
+    return {level: getattr(logger, logger_methods[level_name])
+            for level, level_name in mqttcommon.PAHO_LOG_LEVELS.items()}
 
 @dataclasses.dataclass
 # (configuration object) pylint: disable=too-many-instance-attributes
@@ -369,7 +349,7 @@ class MQTTResponder(weewx.engine.StdService):
             thread.start()
             self.threads.append(thread)
 
-        self.mqtt_client = MQTTClient.get_client(self.logger, self.client_id, None)
+        self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
 
         self.loop_thread = MQTTResponderLoopThread(self.logger,
                                                    self.mqtt_client,
@@ -459,13 +439,7 @@ class MQTTResponderLoopThread(threading.Thread):
             self.mqtt_client.on_log = self._on_log
         self.mqtt_client.on_message = self._on_message
 
-        self.mqtt_logger = {
-            paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_NOTICE: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.logerr,
-            paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
-            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
-        }
+        self.mqtt_logger = paho_log_methods(self.logger)
         mqtt_client.connect(config.host, config.port, config.keepalive)
 
     def run(self):
@@ -572,16 +546,10 @@ class MQTTResponderThread(threading.Thread):
             self.data_bindings[data_binding_key]['manager_dict'] = \
                 weewx.manager.get_manager_dict_from_config(config_dict, data_binding_name)
 
-        self.mqtt_logger = {
-            paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_NOTICE: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.logerr,
-            paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
-            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
-        }
+        self.mqtt_logger = paho_log_methods(self.logger)
 
         self.mids = {}
-        self.mqtt_client = MQTTClient.get_client(self.logger, self.client_id, None)
+        self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
 
         self.mqtt_client.on_connect = self._on_connect
         if config.log_mqtt:
@@ -787,7 +755,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.data_bindings = {}
         self._build_data_bindings(config_dict)
 
-        self.mqtt_client = MQTTClient.get_client(self.logger, self.client_id, None)
+        self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
 
         self.data_queue = queue.PriorityQueue()
 
@@ -966,13 +934,7 @@ class MQTTRequesterLoopThread(threading.Thread):
         # before the thread has started.
         self.running = False
 
-        self.mqtt_logger = {
-            paho.mqtt.client.MQTT_LOG_INFO: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_NOTICE: self.logger.loginf,
-            paho.mqtt.client.MQTT_LOG_WARNING: self.logger.logerr,
-            paho.mqtt.client.MQTT_LOG_ERR: self.logger.logerr,
-            paho.mqtt.client.MQTT_LOG_DEBUG: self.logger.logdbg
-        }
+        self.mqtt_logger = paho_log_methods(self.logger)
 
         self.mqtt_client.on_connect = self._on_connect
         if config.log_mqtt:

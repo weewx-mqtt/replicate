@@ -78,7 +78,7 @@ class TestMQTTRequester(unittest.TestCase):
                                     SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
 
                                     client_id = f'MQTTReplicateRequest-{random_int}'
-                                    mock_mqtt_client.get_client.assert_called_once_with(SUT.logger, client_id, None)
+                                    mock_mqtt_client.assert_called_once_with(SUT.logger, client_id, None)
                                     mock_requester_thread.assert_called_once()
                                     SUT.loop_thread.start.assert_called_once_with()
                                     SUT.mqtt_client.publish.assert_called_once()
