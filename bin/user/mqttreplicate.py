@@ -101,32 +101,21 @@ class Logger:
         """ write an error message """
         self.log.error("(%s) %s", entry['thread_id'], entry['msg_text'])
 
-class LoggerThread(threading.Thread):
-    ''' Thread to drain the Logger's queue and write the messages. '''
-    def __init__(self, log_queue, logger):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.log_queue = log_queue
-        self.logger = logger
+class LoggerThread(mqttcommon.QueueLoggerThread):
+    ''' Thread to drain the Logger's queue and write the messages.
+        The queue loop is inherited from mqttcommon.QueueLoggerThread. '''
+    def start_entry(self):
+        """ Return the entry logged when the thread starts. """
+        return {'log_type': 'INFO', 'thread_id': threading.get_native_id(), 'msg_text': "Starting logger thread"}
 
-    def run(self):
-        ''' Write the start message, then the queued messages until the None sentinel arrives. '''
-        threading.current_thread().name = f"{self.__class__.__name__}-{threading.get_native_id()}"
-        self.logger.log_entry({'log_type': 'INFO', 'thread_id': threading.get_native_id(),
-                               'msg_text': "Starting logger thread"})
+    def exit_entry(self):
+        """ Return the entry logged when the thread exits. """
+        return {'log_type': 'INFO', 'thread_id': threading.get_native_id(),
+                'msg_text': f"Exited logger thread, {self.name}."}
 
-        while True:
-            entry = self.log_queue.get()
-            if entry is None:
-                break
-            try:
-                self.logger.log_entry(entry)
-            except (TypeError, KeyError):
-                self.logger.log_entry({'log_type': 'ERROR', 'thread_id': threading.get_native_id(),
-                                       'msg_text': entry})
-
-        self.logger.log_entry({'log_type': 'INFO', 'thread_id': threading.get_native_id(),
-                               'msg_text': f"Exited logger thread, {self.name}."})
+    def invalid_entry(self, entry):
+        """ Return the error entry logged for an entry that could not be logged. """
+        return {'log_type': 'ERROR', 'thread_id': threading.get_native_id(), 'msg_text': entry}
 
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' Wrap paho mqtt to protect from breaking changes. '''
