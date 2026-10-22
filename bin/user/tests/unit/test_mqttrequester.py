@@ -170,7 +170,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().loginf.call_count, 3)
+                                        self.assertEqual(mock_logger().info.call_count, 3)
 
     def test_gen_archive_records(self):
         mock_engine = mock.Mock()
@@ -207,7 +207,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().loginf.call_count, 2)
+                                        self.assertEqual(mock_logger().info.call_count, 2)
 
 if __name__ == '__main__':
     helpers.run_tests()

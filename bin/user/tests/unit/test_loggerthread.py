@@ -38,12 +38,16 @@ class TestLoggerThread(unittest.TestCase):
 
         entries = [call[0][0] for call in mock_logger.log_entry.call_args_list]
         self.assertEqual(len(entries), 4)
+        self.assertEqual(entries[0]['name'], SUT.name)
         self.assertEqual(entries[0]['log_type'], 'INFO')
+        self.assertIsNone(entries[0]['msg_id'])
         self.assertEqual(entries[0]['thread_id'], SUT.native_id)
         self.assertEqual(entries[0]['msg_text'], "Starting logger thread")
         self.assertIs(entries[1], debug_entry)
         self.assertIs(entries[2], error_entry)
+        self.assertEqual(entries[3]['name'], SUT.name)
         self.assertEqual(entries[3]['log_type'], 'INFO')
+        self.assertIsNone(entries[3]['msg_id'])
         self.assertEqual(entries[3]['thread_id'], SUT.native_id)
         self.assertEqual(entries[3]['msg_text'], f"Exited logger thread, {SUT.name}.")
 
@@ -73,7 +77,9 @@ class TestLoggerThread(unittest.TestCase):
         self.assertEqual(len(entries), 4)
         self.assertIs(entries[1], invalid_entry)
         # The raw entry is handed over as the message of an error entry.
+        self.assertEqual(entries[2]['name'], SUT.name)
         self.assertEqual(entries[2]['log_type'], 'ERROR')
+        self.assertIsNone(entries[2]['msg_id'])
         self.assertEqual(entries[2]['thread_id'], SUT.native_id)
         self.assertIs(entries[2]['msg_text'], invalid_entry)
         self.assertEqual(entries[3]['msg_text'], f"Exited logger thread, {SUT.name}.")

@@ -108,15 +108,15 @@ class TestMQTTResponderThread(unittest.TestCase):
                                                                  config)
 
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_INFO],
-                                 mock_logger.loginf)
+                                 mock_logger.info)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_NOTICE],
-                                 mock_logger.loginf)
+                                 mock_logger.info)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_WARNING],
-                                 mock_logger.loginf)
+                                 mock_logger.info)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR],
-                                 mock_logger.logerr)
+                                 mock_logger.error)
                 self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_DEBUG],
-                                 mock_logger.logdbg)
+                                 mock_logger.debug)
 
     def test_on_log(self):
         mock_logger = mock.Mock()
@@ -158,11 +158,11 @@ class TestMQTTResponderThread(unittest.TestCase):
 
                         # A mapped level dispatches to the mapped logger method.
                         SUT._on_log(None, None, user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR, msg)
-                        mock_logger.logerr.assert_called_once_with(f'Client {client_id} MQTT log: {msg}')
+                        mock_logger.error.assert_called_once_with(None, f'Client {client_id} MQTT log: {msg}')
 
-                        # An unmapped level falls back to loginf instead of raising KeyError.
+                        # An unmapped level falls back to info instead of raising KeyError.
                         SUT._on_log(None, None, helpers.random_string(), msg)
-                        mock_logger.loginf.assert_called_once_with(f'Client {client_id} MQTT log: {msg}')
+                        mock_logger.info.assert_called_once_with(None, f'Client {client_id} MQTT log: {msg}')
 
     def test_run(self):
         mock_logger = mock.Mock()
@@ -325,9 +325,9 @@ class TestMQTTResponderThread(unittest.TestCase):
                         SUT.run()
 
                         # The wait must give up after the keepalive, log, and disconnect.
-                        self.assertEqual(mock_logger.logerr.call_count, 1)
+                        self.assertEqual(mock_logger.error.call_count, 1)
                         self.assertIn(f'Timed out after {keepalive} seconds',
-                                      mock_logger.logerr.call_args[0][0])
+                                      mock_logger.error.call_args[0][1])
                         mock_mqtt_client.disconnect.assert_called_once_with()
                         # A publish timeout is logged, but must not take the responder down.
                         mock_thread_error.set.assert_not_called()
@@ -388,7 +388,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                     SUT.run()
 
                     mock_manager.open_manager.assert_called_once()
-                    self.assertEqual(mock_logger.logerr.call_count, 2)
+                    self.assertEqual(mock_logger.error.call_count, 2)
                     # The failure must be signaled through the shared thread_error event.
                     mock_thread_error.set.assert_called_once_with()
                     mock_db_manager.close.assert_called_once()

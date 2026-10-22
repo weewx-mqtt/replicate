@@ -150,7 +150,7 @@ class TestMQTTResponder(unittest.TestCase):
                                 # even though it was never fully initialized.
                                 SUT.shutDown()
 
-                                mock_logger().loginf.assert_any_call('Responder not enabled, exiting.')
+                                mock_logger().info.assert_any_call(None, 'Responder not enabled, exiting.')
 
     def test_shutDown(self):
         mock_engine = mock.Mock()
