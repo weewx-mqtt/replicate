@@ -39,22 +39,88 @@ ARCHIVE_TOPIC = 'replicate/archive'
 class ThreadError(Exception):
     ''' Exception raised when a critical error occurs in a child thread. '''
 
-class Logger:  # pragma: no cover
-    ''' Manage the logging '''
+class Logger:
+    ''' Manage the logging.
+        Messages are queued and written by a LoggerThread, so logging never blocks the caller. '''
+    # The default time shutdown waits for the LoggerThread to flush queued messages.
+    SHUTDOWN_TIMEOUT = 10
+
     def __init__(self):
         self.log = logging.getLogger(__name__)
+        self.log_queue = queue.Queue()
+        self.log_functions = {
+            'DEBUG': self._log_debug,
+            'INFO': self._log_info,
+            'ERROR': self._log_error,
+        }
+        self.log_thread = LoggerThread(self.log_queue, self)
+        self.log_thread.start()
 
     def logdbg(self, msg):
-        """ log debug messages """
-        self.log.debug("(%s) %s", threading.get_native_id(), msg)
+        """ queue debug messages """
+        self.log_queue.put({'log_type': 'DEBUG', 'thread_id': threading.get_native_id(), 'msg_text': msg})
 
     def loginf(self, msg):
-        """ log informational messages """
-        self.log.info("(%s) %s", threading.get_native_id(), msg)
+        """ queue informational messages """
+        self.log_queue.put({'log_type': 'INFO', 'thread_id': threading.get_native_id(), 'msg_text': msg})
 
     def logerr(self, msg):
-        """ log error messages """
-        self.log.error("(%s) %s", threading.get_native_id(), msg)
+        """ queue error messages """
+        self.log_queue.put({'log_type': 'ERROR', 'thread_id': threading.get_native_id(), 'msg_text': msg})
+
+    def log_entry(self, entry):
+        """ Log a queued entry. This is called by the LoggerThread. """
+        self.log_functions[entry['log_type']](entry)
+
+    def shutdown(self, timeout=SHUTDOWN_TIMEOUT):
+        """ Stop the logger thread, flushing queued messages. """
+        if not self.log_thread.is_alive():
+            return
+
+        self.log_queue.put(None)
+        self.log_thread.join(timeout)
+        if self.log_thread.is_alive():
+            self._log_error({'thread_id': threading.get_native_id(),
+                             'msg_text': f"Unable to shut down {self.log_thread.name} thread"})
+
+    def _log_debug(self, entry):
+        """ write a debug message """
+        self.log.debug("(%s) %s", entry['thread_id'], entry['msg_text'])
+
+    def _log_info(self, entry):
+        """ write an informational message """
+        self.log.info("(%s) %s", entry['thread_id'], entry['msg_text'])
+
+    def _log_error(self, entry):
+        """ write an error message """
+        self.log.error("(%s) %s", entry['thread_id'], entry['msg_text'])
+
+class LoggerThread(threading.Thread):
+    ''' Thread to drain the Logger's queue and write the messages. '''
+    def __init__(self, log_queue, logger):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.log_queue = log_queue
+        self.logger = logger
+
+    def run(self):
+        ''' Write the start message, then the queued messages until the None sentinel arrives. '''
+        threading.current_thread().name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.logger.log_entry({'log_type': 'INFO', 'thread_id': threading.get_native_id(),
+                               'msg_text': "Starting logger thread"})
+
+        while True:
+            entry = self.log_queue.get()
+            if entry is None:
+                break
+            try:
+                self.logger.log_entry(entry)
+            except (TypeError, KeyError):
+                self.logger.log_entry({'log_type': 'ERROR', 'thread_id': threading.get_native_id(),
+                                       'msg_text': entry})
+
+        self.logger.log_entry({'log_type': 'INFO', 'thread_id': threading.get_native_id(),
+                               'msg_text': f"Exited logger thread, {self.name}."})
 
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' Wrap paho mqtt to protect from breaking changes. '''
@@ -363,28 +429,32 @@ class MQTTResponder(weewx.engine.StdService):
 
     def shutDown(self):
         self.logger.loginf('Shutting down.')
-        if not self.enabled:
-            return
+        try:
+            if not self.enabled:
+                return
 
-        for _, data_binding in self.data_bindings.items():
-            data_binding['dbmanager'].close()
+            for _, data_binding in self.data_bindings.items():
+                data_binding['dbmanager'].close()
 
-        self.mqtt_client.disconnect()
-        self.loop_thread.join(20.0)
-        if self.loop_thread.is_alive():
-            self.logger.logerr(f"Unable to shut down {self.loop_thread.native_id} thread")
-        else:
-            self.logger.loginf(f"Shut down {self.loop_thread.native_id} thread")
-
-        for _ in range(self.config.max_responder_threads):
-            self.data_queue.put(None)
-
-        for thread in self.threads:
-            thread.join(20)
-            if thread.is_alive():
-                self.logger.logerr(f"Unable to shut down {thread.native_id} thread")
+            self.mqtt_client.disconnect()
+            self.loop_thread.join(20.0)
+            if self.loop_thread.is_alive():
+                self.logger.logerr(f"Unable to shut down {self.loop_thread.native_id} thread")
             else:
-                self.logger.loginf(f"Shut down {thread.native_id} thread")
+                self.logger.loginf(f"Shut down {self.loop_thread.native_id} thread")
+
+            for _ in range(self.config.max_responder_threads):
+                self.data_queue.put(None)
+
+            for thread in self.threads:
+                thread.join(20)
+                if thread.is_alive():
+                    self.logger.logerr(f"Unable to shut down {thread.native_id} thread")
+                else:
+                    self.logger.loginf(f"Shut down {thread.native_id} thread")
+        finally:
+            # Flush the queued messages after the threads that produced them have stopped.
+            self.logger.shutdown()
 
     def new_archive_record(self, event):
         ''' Handle the new_archive_record event.'''
@@ -897,6 +967,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         while self.loop_thread.running:
             time.sleep(1)
         self.logger.loginf("Exiting MQTTRequester")
+        self.logger.shutdown()
 
     def request_records(self, data_binding_name, qos, topic, last_ts):
         ''' Request the missing data. '''
