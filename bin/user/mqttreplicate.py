@@ -29,6 +29,12 @@ from weeutil.weeutil import to_bool, to_int
 
 from user import mqttcommon
 
+# All the weewx-mqtt extensions ship their own copy of mqttcommon. Fail loudly when the
+# loaded copy is older than this extension needs, instead of with a mysterious error later.
+if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 0):
+    raise ImportError("user.mqttcommon is too old. An older weewx-mqtt extension likely overwrote it during"
+                      " install; reinstall or upgrade all the weewx-mqtt extensions.")
+
 VERSION = "1.0.0-rc03c"
 DRIVER_NAME = 'MQTTRequester'
 DRIVER_VERSION = VERSION
