@@ -47,10 +47,8 @@ class ThreadError(Exception):
 class Logger(mqttcommon.Logger):
     ''' Manage the logging.
         The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
-        this subclass pins replicate's message formats. '''
+        this subclass pins the context key: the emitting thread's id. '''
     LOG_NAME = __name__
-    LOG_FORMAT = "(%s) %s"
-    ERROR_LOG_FORMAT = "(%s) %s"
     LOG_KEY = 'thread_id'
 
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
