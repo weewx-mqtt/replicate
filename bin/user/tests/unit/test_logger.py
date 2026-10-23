@@ -18,7 +18,7 @@ import user.mqttreplicate
 
 class TestInitialization(unittest.TestCase):
     def test_init_starts_a_daemon_logger_thread(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
 
             SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
@@ -46,7 +46,7 @@ class TestCreateEntry(unittest.TestCase):
 
 class TestLogMethods(unittest.TestCase):
     def test_log_methods_queue_the_message_with_the_calling_thread_id(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
             SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
 
@@ -82,7 +82,7 @@ class TestLogEntry(unittest.TestCase):
         return logger
 
     def test_log_entry_dispatches_the_log_types(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
             SUT = self._stopped_logger()
             mock_log.reset_mock()
@@ -103,7 +103,7 @@ class TestLogEntry(unittest.TestCase):
             mock_log.error.assert_called_once_with("(%s) %s", error_name, error_message)
 
     def test_log_entry_with_an_invalid_entry_raises(self):
-        with mock.patch('user.mqttreplicate.logging'):
+        with mock.patch('user.mqttcommon.logging'):
             SUT = self._stopped_logger()
 
             with self.assertRaises(KeyError):  # unknown log type
@@ -115,7 +115,7 @@ class TestLogEntry(unittest.TestCase):
                 SUT.log_entry(helpers.random_string())
 
     def test_log_entry_skips_entries_with_a_none_log_type(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
             SUT = self._stopped_logger()
             mock_log.reset_mock()
@@ -129,7 +129,7 @@ class TestLogEntry(unittest.TestCase):
 
 class TestShutdown(unittest.TestCase):
     def test_shutdown_drains_the_queue(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
             SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
 
@@ -149,7 +149,7 @@ class TestShutdown(unittest.TestCase):
                                       ('info', f"Exited logger thread, {SUT.log_thread.name}.")])
 
     def test_shutdown_is_idempotent(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
             SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
 
@@ -167,7 +167,7 @@ class TestShutdown(unittest.TestCase):
             mock_log.error.assert_not_called()
 
     def test_shutdown_warns_when_the_logger_thread_does_not_shut_down(self):
-        with mock.patch('user.mqttreplicate.logging') as mock_logging:
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
             SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
 

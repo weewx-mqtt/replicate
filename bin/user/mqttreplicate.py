@@ -7,7 +7,6 @@
 import argparse
 import dataclasses
 import json
-import logging
 import queue
 import random
 import threading
@@ -45,97 +44,14 @@ ARCHIVE_TOPIC = 'replicate/archive'
 class ThreadError(Exception):
     ''' Exception raised when a critical error occurs in a child thread. '''
 
-class Logger:
+class Logger(mqttcommon.Logger):
     ''' Manage the logging.
-        The log queue and the LoggerThread that drains it are owned here. '''
-    # The default time shutdown waits for the LoggerThread to flush queued messages.
-    SHUTDOWN_TIMEOUT = 10
-
-    def __init__(self, name, log_queue):
-        self.name = name
-        self.log = logging.getLogger(__name__)
-        self.log_queue = log_queue
-        self.log_functions = {
-            'TRACE': self._log_trace,
-            'DEBUG': self._log_debug,
-            'INFO': self._log_info,
-            'ERROR': self._log_error,
-        }
-        self.log_thread = LoggerThread(self.log_queue, self)
-        self.log_thread.start()
-
-    @staticmethod
-    def create_entry(name, log_type, msg_id, msg_text):
-        """ Create a log entry. """
-        return {'name': name,
-                'log_type': log_type,
-                'msg_id': msg_id,
-                'msg_text': msg_text,
-                'thread_id': threading.get_native_id()}
-
-    def trace(self, msg_id, msg_text):
-        """ Queue trace messages. """
-        self.log_queue.put(Logger.create_entry(self.name, 'TRACE', msg_id, msg_text))
-
-    def debug(self, msg_id, msg_text):
-        """ Queue debug messages. """
-        self.log_queue.put(Logger.create_entry(self.name, 'DEBUG', msg_id, msg_text))
-
-    def info(self, msg_id, msg_text):
-        """ Queue informational messages. """
-        self.log_queue.put(Logger.create_entry(self.name, 'INFO', msg_id, msg_text))
-
-    def error(self, msg_id, msg_text):
-        """ Queue error messages. """
-        self.log_queue.put(Logger.create_entry(self.name, 'ERROR', msg_id, msg_text))
-
-    def log_entry(self, entry):
-        """ Log a queued entry. This is called by the LoggerThread. """
-        if entry['log_type'] is None:
-            return
-        self.log_functions[entry['log_type']](entry)
-
-    def shutdown(self, timeout=SHUTDOWN_TIMEOUT):
-        """ Stop the logger thread, flushing queued messages. """
-        if not self.log_thread.is_alive():
-            return
-
-        self.log_queue.put(None)
-        self.log_thread.join(timeout)
-        if self.log_thread.is_alive():
-            self._log_error(Logger.create_entry(self.name, 'ERROR', None,
-                                                f"Unable to shut down {self.log_thread.name} thread"))
-
-    def _log_trace(self, entry):
-        """ write a trace message (at DEBUG level) """
-        self.log.debug("(%s) %s", entry['thread_id'], entry['msg_text'])
-
-    def _log_debug(self, entry):
-        """ write a debug message """
-        self.log.debug("(%s) %s", entry['thread_id'], entry['msg_text'])
-
-    def _log_info(self, entry):
-        """ write an informational message """
-        self.log.info("(%s) %s", entry['thread_id'], entry['msg_text'])
-
-    def _log_error(self, entry):
-        """ write an error message """
-        self.log.error("(%s) %s", entry['thread_id'], entry['msg_text'])
-
-class LoggerThread(mqttcommon.QueueLoggerThread):
-    ''' Thread to drain the Logger's queue and write the messages.
-        The queue loop is inherited from mqttcommon.QueueLoggerThread. '''
-    def start_entry(self):
-        """ Return the entry logged when the thread starts. """
-        return Logger.create_entry(self.name, 'INFO', None, "Starting logger thread")
-
-    def exit_entry(self):
-        """ Return the entry logged when the thread exits. """
-        return Logger.create_entry(self.name, 'INFO', None, f"Exited logger thread, {self.name}.")
-
-    def invalid_entry(self, entry):
-        """ Return the error entry logged for an entry that could not be logged. """
-        return Logger.create_entry(self.name, 'ERROR', None, entry)
+        The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
+        this subclass pins replicate's message formats. '''
+    LOG_NAME = __name__
+    LOG_FORMAT = "(%s) %s"
+    ERROR_LOG_FORMAT = "(%s) %s"
+    LOG_KEY = 'thread_id'
 
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' Wrap paho mqtt to protect from breaking changes. '''
