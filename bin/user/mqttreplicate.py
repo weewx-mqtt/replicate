@@ -49,7 +49,7 @@ class Logger(mqttcommon.Logger):
         The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
         this subclass pins the context key: the emitting thread's id. '''
     LOG_NAME = __name__
-    LOG_KEY = 'thread_id'
+    LOG_KEYS = ('thread_id',)
 
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' Wrap paho mqtt to protect from breaking changes. '''

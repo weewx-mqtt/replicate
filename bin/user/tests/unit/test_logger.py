@@ -42,7 +42,7 @@ class TestCreateEntry(unittest.TestCase):
         entry = user.mqttreplicate.Logger.create_entry(name, log_type, None, msg_text)
 
         self.assertEqual(entry, {'name': name, 'log_type': log_type, 'msg_id': None, 'msg_text': msg_text,
-                                 'thread_id': threading.get_native_id()})
+                                 'thread_id': threading.get_native_id(), 'archive_timestamp': None})
 
 class TestLogMethods(unittest.TestCase):
     def test_log_methods_queue_the_message_with_the_calling_thread_id(self):
@@ -69,9 +69,9 @@ class TestLogMethods(unittest.TestCase):
 
             # The message is logged with the id of the thread that queued it,
             # not the id of the logger thread.
-            mock_log.debug.assert_called_once_with("(%s) %s", thread_ids[0], debug_message)
-            mock_log.info.assert_any_call("(%s) %s", thread_ids[0], info_message)
-            mock_log.error.assert_called_once_with("(%s) %s", thread_ids[0], error_message)
+            mock_log.debug.assert_called_once_with("(%s) %s", str(thread_ids[0]), debug_message)
+            mock_log.info.assert_any_call("(%s) %s", str(thread_ids[0]), info_message)
+            mock_log.error.assert_called_once_with("(%s) %s", str(thread_ids[0]), error_message)
 
 class TestLogEntry(unittest.TestCase):
     @staticmethod
@@ -188,7 +188,7 @@ class TestShutdown(unittest.TestCase):
             SUT.shutdown(timeout=0.05)
 
             expected = f"Unable to shut down {SUT.log_thread.name} thread"
-            mock_log.error.assert_called_once_with("(%s) %s", threading.get_native_id(), expected)
+            mock_log.error.assert_called_once_with("(%s) %s", str(threading.get_native_id()), expected)
             self.assertTrue(SUT.log_thread.is_alive())
 
             # Release the thread and wait for it to exit.
