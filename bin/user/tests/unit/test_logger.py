@@ -187,7 +187,7 @@ class TestShutdown(unittest.TestCase):
 
             SUT.shutdown(timeout=0.05)
 
-            expected = f"Unable to shut down {SUT.log_thread.name} thread"
+            expected = SUT.log_messages[124004].format(name=SUT.log_thread.name)
             mock_log.error.assert_called_once_with("(%s) %s", str(threading.get_native_id()), expected)
             self.assertTrue(SUT.log_thread.is_alive())
 
