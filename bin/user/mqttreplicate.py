@@ -44,13 +44,6 @@ ARCHIVE_TOPIC = 'replicate/archive'
 class ThreadError(Exception):
     ''' Exception raised when a critical error occurs in a child thread. '''
 
-class Logger(mqttcommon.Logger):
-    ''' Manage the logging.
-        The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
-        this subclass pins the context key: the emitting thread's id. '''
-    LOG_NAME = __name__
-    LOG_KEYS = ('thread_id',)
-
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' Wrap paho mqtt to protect from breaking changes. '''
     def __init__(self, logger, client_id, userdata):
@@ -298,7 +291,8 @@ class MQTTResponder(weewx.engine.StdService):
     ''' The "server" that sends the replication data to the requester/client. '''
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
-        self.logger = Logger(f"{self.__class__.__name__}-{threading.get_native_id()}", queue.Queue())
+        self.logger = mqttcommon.Logger(f"{self.__class__.__name__}-{threading.get_native_id()}", queue.Queue(),
+                                        log_name=__name__, log_keys=('thread_id',))
         self.logger.info(None, f"version: {VERSION}")
 
         self.config = parse_responder_config(config_dict, self.logger)
@@ -743,7 +737,8 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     # (driver state) pylint: disable=too-many-instance-attributes
     ''' The "client" class that data ts replicated to. '''
     def __init__(self, config_dict, _engine):
-        self.logger = Logger(f"{self.__class__.__name__}-{threading.get_native_id()}", queue.Queue())
+        self.logger = mqttcommon.Logger(f"{self.__class__.__name__}-{threading.get_native_id()}", queue.Queue(),
+                                        log_name=__name__, log_keys=('thread_id',))
         self.logger.info(None, f"version: {VERSION}")
 
         self.config = parse_requester_config(config_dict, self.logger)

@@ -63,7 +63,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                         with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
@@ -123,7 +123,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
@@ -154,7 +154,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+                with mock.patch('user.mqttcommon.Logger') as mock_logger:
                     with mock.patch('user.mqttreplicate.weewx.manager'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
@@ -191,7 +191,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+                with mock.patch('user.mqttcommon.Logger') as mock_logger:
                     with mock.patch('user.mqttreplicate.weewx.manager'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):

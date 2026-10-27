@@ -21,7 +21,7 @@ class TestInitialization(unittest.TestCase):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
 
-            SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
+            SUT = user.mqttcommon.Logger('test-logger', queue.Queue(), log_keys=('thread_id',))
 
             self.assertTrue(SUT.log_thread.daemon)
             self.assertTrue(SUT.log_thread.is_alive())
@@ -39,7 +39,7 @@ class TestCreateEntry(unittest.TestCase):
         log_type = helpers.random_string()
         msg_text = helpers.random_string()
 
-        entry = user.mqttreplicate.Logger.create_entry(name, log_type, None, msg_text)
+        entry = user.mqttcommon.Logger.create_entry(name, log_type, None, msg_text)
 
         self.assertEqual(entry, {'name': name, 'log_type': log_type, 'msg_id': None, 'msg_text': msg_text,
                                  'thread_id': threading.get_native_id(), 'archive_timestamp': None})
@@ -48,7 +48,7 @@ class TestLogMethods(unittest.TestCase):
     def test_log_methods_queue_the_message_with_the_calling_thread_id(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
-            SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
+            SUT = user.mqttcommon.Logger('test-logger', queue.Queue(), log_keys=('thread_id',))
 
             debug_message = helpers.random_string()
             info_message = helpers.random_string()
@@ -77,7 +77,7 @@ class TestLogEntry(unittest.TestCase):
     @staticmethod
     def _stopped_logger():
         """ Construct a Logger and drain its thread, so log_entry calls are synchronous. """
-        logger = user.mqttreplicate.Logger('test-logger', queue.Queue())
+        logger = user.mqttcommon.Logger('test-logger', queue.Queue(), log_keys=('thread_id',))
         logger.shutdown(timeout=5)
         return logger
 
@@ -120,8 +120,8 @@ class TestLogEntry(unittest.TestCase):
             SUT = self._stopped_logger()
             mock_log.reset_mock()
 
-            SUT.log_entry(user.mqttreplicate.Logger.create_entry('test-logger', None, None,
-                                                                 helpers.random_string()))
+            SUT.log_entry(user.mqttcommon.Logger.create_entry('test-logger', None, None,
+                                                              helpers.random_string()))
 
             mock_log.debug.assert_not_called()
             mock_log.info.assert_not_called()
@@ -131,12 +131,12 @@ class TestShutdown(unittest.TestCase):
     def test_shutdown_drains_the_queue(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
-            SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
+            SUT = user.mqttcommon.Logger('test-logger', queue.Queue(), log_keys=('thread_id',))
 
             info_message = helpers.random_string()
             error_message = helpers.random_string()
-            SUT.log_queue.put(user.mqttreplicate.Logger.create_entry('test-logger', 'INFO', None, info_message))
-            SUT.log_queue.put(user.mqttreplicate.Logger.create_entry('test-logger', 'ERROR', None, error_message))
+            SUT.log_queue.put(user.mqttcommon.Logger.create_entry('test-logger', 'INFO', None, info_message))
+            SUT.log_queue.put(user.mqttcommon.Logger.create_entry('test-logger', 'ERROR', None, error_message))
 
             SUT.shutdown(timeout=5)
 
@@ -151,10 +151,10 @@ class TestShutdown(unittest.TestCase):
     def test_shutdown_is_idempotent(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
-            SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
+            SUT = user.mqttcommon.Logger('test-logger', queue.Queue(), log_keys=('thread_id',))
 
             SUT.shutdown(timeout=5)
-            leftover = user.mqttreplicate.Logger.create_entry('test-logger', 'INFO', None, helpers.random_string())
+            leftover = user.mqttcommon.Logger.create_entry('test-logger', 'INFO', None, helpers.random_string())
             SUT.log_queue.put(leftover)
 
             SUT.shutdown(timeout=5)
@@ -169,7 +169,7 @@ class TestShutdown(unittest.TestCase):
     def test_shutdown_warns_when_the_logger_thread_does_not_shut_down(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
-            SUT = user.mqttreplicate.Logger('test-logger', queue.Queue())
+            SUT = user.mqttcommon.Logger('test-logger', queue.Queue(), log_keys=('thread_id',))
 
             # Replace log_entry to simulate a stuck WeeWX log handler.
             block_entered = threading.Event()
@@ -181,8 +181,8 @@ class TestShutdown(unittest.TestCase):
 
             SUT.log_entry = block_entry
 
-            SUT.log_queue.put(user.mqttreplicate.Logger.create_entry('test-logger', 'INFO', None,
-                                                                     helpers.random_string()))
+            SUT.log_queue.put(user.mqttcommon.Logger.create_entry('test-logger', 'INFO', None,
+                                                                  helpers.random_string()))
             self.assertTrue(block_entered.wait(5))
 
             SUT.shutdown(timeout=0.05)

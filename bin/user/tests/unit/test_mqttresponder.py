@@ -44,7 +44,7 @@ class TestMQTTResponder(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttreplicate.threading') as mock_threading:
-            with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+            with mock.patch('user.mqttcommon.Logger') as mock_logger:
                 with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                     with mock.patch('user.mqttreplicate.MQTTResponderThread') as mock_responder_thread:
                         with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
@@ -113,7 +113,7 @@ class TestMQTTResponder(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 with mock.patch('user.mqttreplicate.weewx.manager'):
                     with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
@@ -137,7 +137,7 @@ class TestMQTTResponder(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+            with mock.patch('user.mqttcommon.Logger') as mock_logger:
                 with mock.patch('user.mqttreplicate.weewx.manager'):
                     with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
@@ -169,7 +169,7 @@ class TestMQTTResponder(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                     with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                         with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
@@ -210,7 +210,7 @@ class TestMQTTResponder(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                         with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                             with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
@@ -250,7 +250,7 @@ class TestMQTTResponder(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                         with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                             with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
