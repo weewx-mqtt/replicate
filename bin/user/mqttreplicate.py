@@ -291,8 +291,9 @@ class MQTTResponder(weewx.engine.StdService):
     ''' The "server" that sends the replication data to the requester/client. '''
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
-        self.logger = mqttcommon.Logger(f"{self.__class__.__name__}-{threading.get_native_id()}", queue.Queue(),
-                                        log_name=__name__, log_keys=('thread_id',))
+        self.logger = mqttcommon.Logger({'name': f"{self.__class__.__name__}-{threading.get_native_id()}",
+                                         'log_queue': queue.Queue(), 'log_name': __name__,
+                                         'log_keys': ('thread_id',)})
         self.logger.info(None, f"version: {VERSION}")
 
         self.config = parse_responder_config(config_dict, self.logger)
@@ -737,8 +738,9 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     # (driver state) pylint: disable=too-many-instance-attributes
     ''' The "client" class that data ts replicated to. '''
     def __init__(self, config_dict, _engine):
-        self.logger = mqttcommon.Logger(f"{self.__class__.__name__}-{threading.get_native_id()}", queue.Queue(),
-                                        log_name=__name__, log_keys=('thread_id',))
+        self.logger = mqttcommon.Logger({'name': f"{self.__class__.__name__}-{threading.get_native_id()}",
+                                         'log_queue': queue.Queue(), 'log_name': __name__,
+                                         'log_keys': ('thread_id',)})
         self.logger.info(None, f"version: {VERSION}")
 
         self.config = parse_requester_config(config_dict, self.logger)
