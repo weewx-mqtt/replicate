@@ -215,12 +215,6 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         ''' Subscribe to a MQTT topic. '''
         return self.client.subscribe(topic, qos)
 
-def paho_log_methods(logger):
-    ''' Map the paho mqtt log levels to the logger methods. '''
-    logger_methods = {"DEBUG": "debug", "INFO": "info", "ERROR": "error"}
-    return {level: getattr(logger, logger_methods[level_name])
-            for level, level_name in mqttcommon.PAHO_LOG_LEVELS.items()}
-
 @dataclasses.dataclass
 # (configuration object) pylint: disable=too-many-instance-attributes
 class MQTTResponderConfig:
@@ -435,7 +429,7 @@ class MQTTResponderLoopThread(threading.Thread):
             self.mqtt_client.on_log = self._on_log
         self.mqtt_client.on_message = self._on_message
 
-        self.mqtt_logger = paho_log_methods(self.logger)
+        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
         mqtt_client.connect(config.host, config.port, config.keepalive)
 
     def run(self):
@@ -542,7 +536,7 @@ class MQTTResponderThread(threading.Thread):
             self.data_bindings[data_binding_key]['manager_dict'] = \
                 weewx.manager.get_manager_dict_from_config(config_dict, data_binding_name)
 
-        self.mqtt_logger = paho_log_methods(self.logger)
+        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
 
         self.mids = {}
         self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
@@ -932,7 +926,7 @@ class MQTTRequesterLoopThread(threading.Thread):
         # before the thread has started.
         self.running = False
 
-        self.mqtt_logger = paho_log_methods(self.logger)
+        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
 
         self.mqtt_client.on_connect = self._on_connect
         if config.log_mqtt:
