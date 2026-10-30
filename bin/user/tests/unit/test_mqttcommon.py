@@ -504,24 +504,24 @@ class TestLogger(unittest.TestCase):
             SUT.shutdown(timeout=5)
 
     def test_init_config_applies_the_config_setup(self):
-        mode = random_string()
+        name = random_string()
         with mock.patch('user.mqttcommon.logging') as mock_logging, \
                 mock.patch.dict(sys.modules, {'weewx': mock.MagicMock(debug=0)}):
             mock_logging._checkLevel.return_value = 0
             config = {'throttle': {}}
 
-            SUT = user.mqttcommon.Logger(mode, config=config)
+            SUT = user.mqttcommon.Logger(name, config=config)
 
-            self.assertEqual(SUT.name, mode)
+            self.assertEqual(SUT.name, name)
             self.assertIsNotNone(SUT.throttle)
             # weewx debugging off leaves the TRACE level set.
             self.assertEqual(SUT.trace_level, 5)
             SUT.shutdown(timeout=5)
 
             # The experimental throttle notice is queued, and logged after the thread's start entry.
-            # It renders with the converged format: mode, the queueing thread's id, no record.
+            # It renders with the converged format: the name, the queueing thread's id, no record.
             mock_logging.getLogger.return_value.info.assert_any_call(
-                "(%s) %s", f"{mode}-{threading.get_native_id()}",
+                "(%s) %s", f"{name}-{threading.get_native_id()}",
                 user.mqttcommon.MessageThrottle.NOTICE_EXPERIMENTAL)
 
     def test_setup_logging_adds_the_file_handler(self):
