@@ -627,11 +627,8 @@ class MQTTResponderThread(threading.Thread):
 
     def _track_mid(self, mqtt_message_info):
         ''' Record a published message 'mid' until _on_publish reports it done. '''
-        # Add the message 'mid' to the 'mids collection', self.mids.
-        # This collection will be monitored (in _on_publish) to know when it safe to disconnect.
-        # Sometimes on_publish is called before the call returns
-        # In that case, the 'inflight' mid was added in the on_publish callback.
-        # So, we remove it here.
+        # on_publish can fire before the publish call returns, so it may have
+        # already tracked the mid; otherwise start tracking it here.
         if mqtt_message_info.mid in self.mids:
             del self.mids[mqtt_message_info.mid]
         else:
@@ -657,13 +654,9 @@ class MQTTResponderThread(threading.Thread):
 
     def _on_publish(self, _userdata, mid):
         if mid in self.mids:
-            # time_stamp = self.mids[mid]['time_stamp']
-            # qos = self.mids[mid]['qos']
             del self.mids[mid]
-        # Sometimes on_publish is called before publish call returns.
-        # So we will add the 'inflight' mid here instead.
-        # I think this happens when qos=0
         else:
+            # The publish call had not returned when on_publish fired.
             self.mids[mid] = {}
 
     def _on_log(self, _client, _userdata, level, msg):
@@ -974,14 +967,6 @@ class MQTTRequesterLoopThread(threading.Thread):
     def _on_message(self, _userdata, msg):
         try:
             record = json.loads(msg.payload.decode('utf-8'))
-
-            # self.logger.debug(None, f"Response has topic: {msg.topic}, "
-            #                    f"properties: {msg.properties}"
-            #                    f"QOS: {int(msg.qos)}, "
-            #                    f"retain: {msg.retain}, "
-            #                    f"payload: {record['dateTime']}, "
-            #                    f"payload: {msg.payload}, ",
-            #                    )
 
             if not hasattr(msg.properties, 'UserProperty'):
                 self.logger.error(None, f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty"')
