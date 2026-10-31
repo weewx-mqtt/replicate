@@ -10,6 +10,7 @@ jobs:
     uses: weewx-extensions/development-tools/.github/workflows/analyze-test.yml@v6
     with:
       module-name: 'mqttreplicate'
+      lint-paths: './bin/user/mqttreplicate.py ./bin/user/mqttcommon.py'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       latest-weewx-version: '5.5.2'

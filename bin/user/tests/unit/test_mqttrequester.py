@@ -63,7 +63,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                         with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
@@ -78,7 +78,7 @@ class TestMQTTRequester(unittest.TestCase):
                                     SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
 
                                     client_id = f'MQTTReplicateRequest-{random_int}'
-                                    mock_mqtt_client.get_client.assert_called_once_with(SUT.logger, client_id, None)
+                                    mock_mqtt_client.assert_called_once_with(SUT.logger, client_id, None)
                                     mock_requester_thread.assert_called_once()
                                     SUT.loop_thread.start.assert_called_once_with()
                                     SUT.mqtt_client.publish.assert_called_once()
@@ -123,7 +123,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
@@ -154,7 +154,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+                with mock.patch('user.mqttcommon.Logger') as mock_logger:
                     with mock.patch('user.mqttreplicate.weewx.manager'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
@@ -170,7 +170,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().loginf.call_count, 3)
+                                        self.assertEqual(mock_logger().info.call_count, 3)
 
     def test_gen_archive_records(self):
         mock_engine = mock.Mock()
@@ -191,7 +191,7 @@ class TestMQTTRequester(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttreplicate.Logger') as mock_logger:
+                with mock.patch('user.mqttcommon.Logger') as mock_logger:
                     with mock.patch('user.mqttreplicate.weewx.manager'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
@@ -207,7 +207,7 @@ class TestMQTTRequester(unittest.TestCase):
                                             pass
 
                                         self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().loginf.call_count, 2)
+                                        self.assertEqual(mock_logger().info.call_count, 2)
 
 if __name__ == '__main__':
     helpers.run_tests()
