@@ -11,6 +11,8 @@ jobs:
     with:
       module-name: 'mqttreplicate'
       lint-paths: './bin/user/mqttreplicate.py ./bin/user/mqttcommon.py'
+      common-repos: |
+        https://github.com/weewx-mqtt/mqttcommon v1
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       latest-weewx-version: '5.5.2'
