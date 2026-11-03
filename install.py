@@ -179,7 +179,8 @@ class MQTTReplicateInstaller(ExtensionInstaller):
             'author_email': "bellrichm@gmail.com",
             'files': [('bin/user',
                        ['bin/user/mqttreplicate.py',
-                        'bin/user/run_mqttreplicate.py'
+                        'bin/user/run_mqttreplicate.py',
+                        'bin/user/mqttcommon.py'
                         ]
                        )
                       ]

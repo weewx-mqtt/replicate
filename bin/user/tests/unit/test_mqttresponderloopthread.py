@@ -51,19 +51,18 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         mock_client = mock.Mock()
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTResponderConfig(),
-                                                                 None,
-                                                                 None)
+            SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
+                                                             mock_client,
+                                                             user.mqttreplicate.MQTTResponderConfig(),
+                                                             None,
+                                                             None)
 
-                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_INFO], mock_logger.loginf)
-                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_NOTICE], mock_logger.loginf)
-                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_WARNING], mock_logger.logerr)
-                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_ERR], mock_logger.logerr)
-                self.assertEqual(SUT.mqtt_logger[mock_mqtt.client.MQTT_LOG_DEBUG], mock_logger.logdbg)
+            self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_INFO], mock_logger.info)
+            self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_NOTICE], mock_logger.info)
+            self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_WARNING], mock_logger.info)
+            self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR], mock_logger.error)
+            self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_DEBUG], mock_logger.debug)
 
     def test_on_log(self):
         mock_logger = mock.Mock()
@@ -72,21 +71,20 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         msg = helpers.random_string()
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTResponderConfig(client_id=client_id),
-                                                                 None,
-                                                                 None)
+            SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
+                                                             mock_client,
+                                                             user.mqttreplicate.MQTTResponderConfig(client_id=client_id),
+                                                             None,
+                                                             None)
 
-                # A mapped level dispatches to the mapped logger method.
-                SUT._on_log(None, None, mock_mqtt.client.MQTT_LOG_ERR, msg)
-                mock_logger.logerr.assert_called_once_with(f'({client_id}) MQTT log: {msg}')
+            # A mapped level dispatches to the mapped logger method.
+            SUT._on_log(None, None, user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR, msg)
+            mock_logger.error.assert_called_once_with(None, f'({client_id}) MQTT log: {msg}')
 
-                # An unmapped level falls back to loginf instead of raising KeyError.
-                SUT._on_log(None, None, helpers.random_string(), msg)
-                mock_logger.loginf.assert_called_once_with(f'({client_id}) MQTT log: {msg}')
+            # An unmapped level falls back to info instead of raising KeyError.
+            SUT._on_log(None, None, helpers.random_string(), msg)
+            mock_logger.info.assert_called_once_with(None, f'({client_id}) MQTT log: {msg}')
 
     def test_run(self):
         mock_logger = mock.Mock()
@@ -215,9 +213,9 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                 # The request must not be queued and the error message must
                 # contain the actual unknown data_binding name.
                 mock_queue.put.assert_not_called()
-                self.assertEqual(mock_logger.logerr.call_count, 1)
+                self.assertEqual(mock_logger.error.call_count, 1)
                 self.assertIn(f'has unknown data_binding {unknown_data_binding}',
-                              mock_logger.logerr.call_args[0][0])
+                              mock_logger.error.call_args[0][1])
 
 if __name__ == '__main__':
     helpers.run_tests()
