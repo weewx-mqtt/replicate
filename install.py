@@ -85,6 +85,10 @@ MQTTREPLICATE_CONFIG = """
         # The request topic is the topic that the requester uses to request 'catchup'/'backfill' data.
         request_topic = replicate/request
 
+        # The time in seconds to wait for a thread to shut down.
+        # The default value is 20.
+        wait_for_thread_shutdown = 20
+
         # This configures the replicating instance(s).
         # Each replicating instance name needs to match an entry in a MQTTReplicate [[Responder]] section.
         # A replicating instance consists of a set of primary (source) databases to replicate.
@@ -110,6 +114,10 @@ MQTTREPLICATE_CONFIG = """
         # The default value is 1.
         # DEPRECATED - DO NOT USE
         # max_responder_threads = 1
+
+        # The time in seconds to wait for a thread to shut down.
+        # The default value is 20.
+        wait_for_thread_shutdown = 20
 
         # The MQTT QOS when subscribing to a topic.
         # The default value is 1.

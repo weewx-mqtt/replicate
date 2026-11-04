@@ -88,6 +88,7 @@ class TestMQTTResponder(unittest.TestCase):
                                         self.assertEqual(SUT.config.port, 1883)
                                         self.assertEqual(SUT.config.keepalive, 60)
                                         self.assertEqual(SUT.config.publish_qos, 1)
+                                        self.assertEqual(SUT.config.wait_for_thread_shutdown, 20)
                                         mock_responder_thread().start.assert_called_once_with()
 
                                         mock_responder_loop_thread.assert_called_once_with(mock_logger(),
@@ -129,7 +130,8 @@ class TestMQTTResponder(unittest.TestCase):
         config_dict = {
             'MQTTReplicate': {
                 'Responder': {
-                    'enable': False
+                    'enable': False,
+                    'wait_for_thread_shutdown': 3
                 }
             }
         }
@@ -142,24 +144,29 @@ class TestMQTTResponder(unittest.TestCase):
                     with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
+                                with mock.patch('user.mqttreplicate.log_direct') as mock_log_direct:
 
-                                SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-                                self.assertFalse(SUT.enabled)
+                                    SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+                                    self.assertFalse(SUT.enabled)
 
-                                # A disabled responder must shut down without error,
-                                # even though it was never fully initialized.
-                                SUT.shutDown()
+                                    # A disabled responder must shut down without error,
+                                    # even though it was never fully initialized.
+                                    SUT.shutDown()
 
-                                mock_logger().info.assert_any_call(None, 'Responder not enabled, exiting.')
-                                # A component that never ran does not announce that it is shutting down.
-                                self.assertNotIn(mock.call(None, 'Shutting down.'),
-                                                 mock_logger().info.call_args_list)
+                                    mock_logger().info.assert_any_call(None, 'Responder not enabled, exiting.')
+                                    # A component that never ran does not announce that it is shutting down.
+                                    self.assertNotIn(mock.call(None, 'Shutting down.'),
+                                                     mock_logger().info.call_args_list)
+                                    # The logger thread is still stopped, with the configured wait.
+                                    mock_logger().shutdown.assert_called_once_with(3)
+                                    mock_log_direct.assert_not_called()
 
     def test_shutDown(self):
         mock_engine = mock.Mock()
         config_dict = {
             'MQTTReplicate': {
                 'Responder': {
+                    'wait_for_thread_shutdown': 3,
                     helpers.random_string(): {
                         helpers.random_string(): {
                             'type': 'main'
@@ -178,28 +185,35 @@ class TestMQTTResponder(unittest.TestCase):
                         with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
                             with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
                                 with mock.patch('user.mqttreplicate.queue.Queue') as mock_queue:
+                                    with mock.patch('user.mqttreplicate.log_direct') as mock_log_direct:
 
-                                    mock_db_manager = mock.Mock()
-                                    mock_manager.open_manager.return_value = mock_db_manager
+                                        mock_db_manager = mock.Mock()
+                                        mock_manager.open_manager.return_value = mock_db_manager
 
-                                    mock_client = mock.Mock()
-                                    mock_mqtt_client.return_value = mock_client
+                                        mock_client = mock.Mock()
+                                        mock_mqtt_client.return_value = mock_client
 
-                                    SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-                                    SUT.loop_thread.is_alive.return_value = False
-                                    for thread in SUT.threads:
-                                        thread.is_alive.return_value = False
+                                        SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+                                        SUT.loop_thread.is_alive.return_value = False
+                                        for thread in SUT.threads:
+                                            thread.is_alive.return_value = False
 
-                                    SUT.shutDown()
+                                        SUT.shutDown()
 
-                                    mock_db_manager.close.assert_called_once_with()
-                                    mock_client.disconnect.assert_called_once_with()
-                                    mock_queue().put.assert_called_once_with(None)
-                                    mock_logger.return_value.info.assert_any_call(None, 'Shutting down.')
-                                    mock_logger.return_value.info.assert_any_call(None, 'Shutting down the loop thread.')
-                                    mock_logger.return_value.info.assert_any_call(None, 'Shutting down the responder threads.')
-                                    mock_logger.return_value.info.assert_any_call(None, 'MQTTResponder is shut down.')
-                                    mock_logger.return_value.error.assert_not_called()
+                                        mock_db_manager.close.assert_called_once_with()
+                                        mock_client.disconnect.assert_called_once_with()
+                                        mock_queue().put.assert_called_once_with(None)
+                                        SUT.loop_thread.join.assert_called_once_with(3)
+                                        for thread in SUT.threads:
+                                            thread.join.assert_called_once_with(3)
+                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down.')
+                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down the loop thread.')
+                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down the responder threads.')
+                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down the logger thread.')
+                                        mock_logger.return_value.shutdown.assert_called_once_with(3)
+                                        # The completion is logged directly, because the logger thread has stopped by then.
+                                        mock_log_direct.assert_called_once_with('MQTTResponder', 'INFO',
+                                                                                "MQTTResponder is shut down.")
 
     def test_new_archive_record(self):
         mock_engine = mock.Mock()

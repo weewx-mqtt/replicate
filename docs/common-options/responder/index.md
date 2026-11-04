@@ -84,3 +84,9 @@ The default value is 1 (second).
 The maximum number of responser threads to create.
 The default value is 1.
 DEPRECATED - DO NOT USE
+
+### wait_for_thread_shutdown
+
+The time in seconds to wait for a thread to stop when shutting down.
+This applies to the loop thread, the responder threads, and the logger thread.
+The default value is 20.

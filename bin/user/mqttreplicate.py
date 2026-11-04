@@ -7,6 +7,7 @@
 import argparse
 import dataclasses
 import json
+import logging
 import queue
 import random
 import threading
@@ -40,6 +41,17 @@ DRIVER_VERSION = VERSION
 REQUEST_TOPIC = 'replicate/request'
 RESPONSE_TOPIC = 'replicate/response'
 ARCHIVE_TOPIC = 'replicate/archive'
+
+
+def log_direct(name, log_type, msg_text):
+    """ Log an entry without the queue, for a message that must not be lost.
+
+        A queued entry is written by the logger thread, so when that thread is stuck the entry
+        is never written. This writes from the calling thread instead. Only 'INFO' and 'ERROR'
+        are used. """
+    entry = mqttcommon.Logger.create_entry(name, log_type, None, msg_text)
+    args = (f"{entry['name']}-{entry['thread_id']}", entry['msg_text'])
+    getattr(logging.getLogger(__name__), log_type.lower())(mqttcommon.Logger.LOG_FORMAT, *args)
 
 class ThreadError(Exception):
     ''' Exception raised when a critical error occurs in a child thread. '''
@@ -235,18 +247,22 @@ class MQTTResponderConfig:
     publish_qos: int = None
     max_responder_threads: int = None
     log_mqtt: bool = None
+    wait_for_thread_shutdown: int = None
 
 def parse_responder_config(config_dict, logger):
     ''' Parse the responder's configuration options. '''
     client_id = 'MQTTReplicateRespond-' + str(random.randint(1000, 9999))
 
-    enabled = to_bool(config_dict.get('MQTTReplicate', {})
-                      .get('Responder', {})
-                      .get('enable', True))
-    if not enabled:
-        return MQTTResponderConfig(client_id=client_id, enabled=False)
-
     service_dict = config_dict.get('MQTTReplicate', {}).get('Responder', {})
+    enabled = to_bool(service_dict.get('enable', True))
+    wait_for_thread_shutdown = to_int(service_dict.get('wait_for_thread_shutdown', 20))
+    if wait_for_thread_shutdown is None:
+        wait_for_thread_shutdown = 20
+    if not enabled:
+        return MQTTResponderConfig(client_id=client_id,
+                                   enabled=False,
+                                   wait_for_thread_shutdown=wait_for_thread_shutdown)
+
     exclude_keys = ['password']
     sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
     logger.debug(None, f"sanitized configuration removed {exclude_keys}")
@@ -278,6 +294,7 @@ def parse_responder_config(config_dict, logger):
         publish_qos=to_int(service_dict.get('publish_qos', 1)),
         max_responder_threads=to_int(service_dict.get('max_responder_threads', 1)),
         log_mqtt=to_bool(service_dict.get('log_mqtt', False)),
+        wait_for_thread_shutdown=wait_for_thread_shutdown,
     )
 
 class MQTTResponder(weewx.engine.StdService):
@@ -345,29 +362,35 @@ class MQTTResponder(weewx.engine.StdService):
         self.loop_thread.start()
 
     def shutDown(self):
-        try:
-            if not self.enabled:
-                return
+        if not self.enabled:
+            self.logger.shutdown(self.config.wait_for_thread_shutdown)
+            return
 
+        try:
             self.logger.info(None, 'Shutting down.')
 
             for _, data_binding in self.data_bindings.items():
                 data_binding['dbmanager'].close()
 
             self._stop_threads()
-
-            self.logger.info(None, "MQTTResponder is shut down.")
         finally:
             # Flush the queued messages after the threads that produced them have stopped.
-            self.logger.shutdown()
+            self.logger.info(None, 'Shutting down the logger thread.')
+            self.logger.shutdown(self.config.wait_for_thread_shutdown)
+
+        # Logged directly: queued entries are never written once the logger thread has stopped.
+        log_direct(self.__class__.__name__, 'INFO', "MQTTResponder is shut down.")
 
     def _stop_threads(self):
         ''' Stop the loop thread and the responder threads. '''
+        timeout = self.config.wait_for_thread_shutdown
         self.mqtt_client.disconnect()
         self.logger.info(None, 'Shutting down the loop thread.')
-        self.loop_thread.join(20.0)
+        self.loop_thread.join(timeout)
         if self.loop_thread.is_alive():
-            self.logger.error(None, "The loop thread did not shut down within 20 seconds.")
+            # Logged directly, so a stuck logger thread cannot swallow it.
+            log_direct(self.__class__.__name__, 'ERROR',
+                       f"The loop thread did not shut down within {timeout} seconds.")
 
         if not self.threads:
             return
@@ -377,9 +400,10 @@ class MQTTResponder(weewx.engine.StdService):
             self.data_queue.put(None)
 
         for thread in self.threads:
-            thread.join(20)
+            thread.join(timeout)
             if thread.is_alive():
-                self.logger.error(None, "A responder thread did not shut down within 20 seconds.")
+                log_direct(self.__class__.__name__, 'ERROR',
+                           f"A responder thread did not shut down within {timeout} seconds.")
 
     def new_archive_record(self, event):
         ''' Handle the new_archive_record event.'''
@@ -697,6 +721,7 @@ class MQTTRequesterConfig:
     port: int = None
     keepalive: int = None
     log_mqtt: bool = None
+    wait_for_thread_shutdown: int = None
 
 def parse_requester_config(config_dict, logger):
     ''' Parse the requester's configuration options. '''
@@ -710,6 +735,9 @@ def parse_requester_config(config_dict, logger):
 
     response_topic = stn_dict.get('response_topic', RESPONSE_TOPIC)
     request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
+    wait_for_thread_shutdown = to_int(stn_dict.get('wait_for_thread_shutdown', 20))
+    if wait_for_thread_shutdown is None:
+        wait_for_thread_shutdown = 20
 
     return MQTTRequesterConfig(
         client_id=client_id,
@@ -728,6 +756,7 @@ def parse_requester_config(config_dict, logger):
         port=to_int(stn_dict.get('port', 1883)),
         keepalive=to_int(stn_dict.get('keepalive', 60)),
         log_mqtt=to_bool(stn_dict.get('log_mqtt', False)),
+        wait_for_thread_shutdown=wait_for_thread_shutdown,
     )
 
 class MQTTRequester(weewx.drivers.AbstractDevice):
@@ -887,11 +916,16 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.logger.info(None, "Shutting down.")
         self.logger.info(None, "Shutting down the loop thread.")
         self.mqtt_client.disconnect()
-        # ToDo: add ability to exit loop after X time
-        while self.loop_thread.running:
-            time.sleep(1)
-        self.logger.info(None, "MQTTRequester is shut down.")
-        self.logger.shutdown()
+        self.loop_thread.join(self.config.wait_for_thread_shutdown)
+        if self.loop_thread.is_alive():
+            # Logged directly, so a stuck logger thread cannot swallow it.
+            log_direct(self.__class__.__name__, 'ERROR',
+                       "The loop thread did not shut down within "
+                       f"{self.config.wait_for_thread_shutdown} seconds.")
+        self.logger.info(None, "Shutting down the logger thread.")
+        self.logger.shutdown(self.config.wait_for_thread_shutdown)
+        # Logged directly: queued entries are never written once the logger thread has stopped.
+        log_direct(self.__class__.__name__, 'INFO', "MQTTRequester is shut down.")
 
     def request_records(self, data_binding_name, qos, topic, last_ts):
         ''' Request the missing data. '''
@@ -955,12 +989,13 @@ class MQTTRequesterLoopThread(threading.Thread):
 
         self.running = True
         self.mqtt_client.loop_forever()
-        self.running = False
 
         for data_binding_name, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
             self.logger.debug(None, f"Closed db {data_binding_name}.")
         self.logger.info(None, "Loop thread is shut down.")
+        # Only now is the thread done, so a caller waiting on this flag cannot run ahead of it.
+        self.running = False
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.config.response_topic, self.config.subscribe_qos)

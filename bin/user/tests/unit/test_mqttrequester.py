@@ -78,6 +78,7 @@ class TestMQTTRequester(unittest.TestCase):
                                     SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
 
                                     client_id = f'MQTTReplicateRequest-{random_int}'
+                                    self.assertEqual(SUT.config.wait_for_thread_shutdown, 20)
                                     mock_mqtt_client.assert_called_once_with(SUT.logger, client_id, None)
                                     mock_requester_thread.assert_called_once()
                                     SUT.loop_thread.start.assert_called_once_with()
@@ -140,6 +141,7 @@ class TestMQTTRequester(unittest.TestCase):
         config_dict = {
             'MQTTReplicate': {
                 'Requester': {
+                    'wait_for_thread_shutdown': 3,
                     helpers.random_string(): {
                         helpers.random_string(): {
                             'type': 'main',
@@ -158,17 +160,21 @@ class TestMQTTRequester(unittest.TestCase):
                     with mock.patch('user.mqttreplicate.weewx.manager'):
                         with mock.patch('user.mqttreplicate.MQTTClient'):
                             with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_loop_thread:
-                                # The loop thread has already stopped, so closePort does not wait.
-                                mock_loop_thread.return_value.running = False
+                                with mock.patch('user.mqttreplicate.log_direct') as mock_log_direct:
+                                    mock_loop_thread.return_value.is_alive.return_value = False
 
-                                SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
-                                SUT.closePort()
+                                    SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+                                    SUT.closePort()
 
-                                SUT.mqtt_client.disconnect.assert_called_once_with()
-                                mock_logger.return_value.info.assert_any_call(None, "Shutting down.")
-                                mock_logger.return_value.info.assert_any_call(None, "Shutting down the loop thread.")
-                                mock_logger.return_value.info.assert_any_call(None, "MQTTRequester is shut down.")
-                                mock_logger.return_value.shutdown.assert_called_once_with()
+                                    SUT.mqtt_client.disconnect.assert_called_once_with()
+                                    SUT.loop_thread.join.assert_called_once_with(3)
+                                    mock_logger.return_value.info.assert_any_call(None, "Shutting down.")
+                                    mock_logger.return_value.info.assert_any_call(None, "Shutting down the loop thread.")
+                                    mock_logger.return_value.info.assert_any_call(None, "Shutting down the logger thread.")
+                                    mock_logger.return_value.shutdown.assert_called_once_with(3)
+                                    # The completion is logged directly, because the logger thread has stopped by then.
+                                    mock_log_direct.assert_called_once_with('MQTTRequester', 'INFO',
+                                                                            "MQTTRequester is shut down.")
 
     def test_gen_startup_records(self):
         mock_engine = mock.Mock()
