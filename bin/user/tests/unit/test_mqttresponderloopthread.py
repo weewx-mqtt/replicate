@@ -102,6 +102,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                 SUT.run()
 
                 mock_client.loop_forever.assert_called_once_with()
+                mock_logger.info.assert_any_call(None, "Loop thread is shut down.")
 
     def test_on_connect(self):
         mock_logger = mock.Mock()

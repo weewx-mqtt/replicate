@@ -345,33 +345,41 @@ class MQTTResponder(weewx.engine.StdService):
         self.loop_thread.start()
 
     def shutDown(self):
-        self.logger.info(None, 'Shutting down.')
         try:
             if not self.enabled:
                 return
 
+            self.logger.info(None, 'Shutting down.')
+
             for _, data_binding in self.data_bindings.items():
                 data_binding['dbmanager'].close()
 
-            self.mqtt_client.disconnect()
-            self.loop_thread.join(20.0)
-            if self.loop_thread.is_alive():
-                self.logger.error(None, f"Unable to shut down {self.loop_thread.native_id} thread")
-            else:
-                self.logger.info(None, f"Shut down {self.loop_thread.native_id} thread")
+            self._stop_threads()
 
-            for _ in range(self.config.max_responder_threads):
-                self.data_queue.put(None)
-
-            for thread in self.threads:
-                thread.join(20)
-                if thread.is_alive():
-                    self.logger.error(None, f"Unable to shut down {thread.native_id} thread")
-                else:
-                    self.logger.info(None, f"Shut down {thread.native_id} thread")
+            self.logger.info(None, "MQTTResponder is shut down.")
         finally:
             # Flush the queued messages after the threads that produced them have stopped.
             self.logger.shutdown()
+
+    def _stop_threads(self):
+        ''' Stop the loop thread and the responder threads. '''
+        self.mqtt_client.disconnect()
+        self.logger.info(None, 'Shutting down the loop thread.')
+        self.loop_thread.join(20.0)
+        if self.loop_thread.is_alive():
+            self.logger.error(None, "The loop thread did not shut down within 20 seconds.")
+
+        if not self.threads:
+            return
+
+        self.logger.info(None, 'Shutting down the responder threads.')
+        for _ in range(self.config.max_responder_threads):
+            self.data_queue.put(None)
+
+        for thread in self.threads:
+            thread.join(20)
+            if thread.is_alive():
+                self.logger.error(None, "A responder thread did not shut down within 20 seconds.")
 
     def new_archive_record(self, event):
         ''' Handle the new_archive_record event.'''
@@ -437,6 +445,7 @@ class MQTTResponderLoopThread(threading.Thread):
         threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
         self.logger.info(None, f"MQTTResponderLoopThread, {threading.current_thread().name}, is running.")
         self.mqtt_client.loop_forever()
+        self.logger.info(None, "Loop thread is shut down.")
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.config.request_topic, self.config.subscribe_qos)
@@ -571,6 +580,8 @@ class MQTTResponderThread(threading.Thread):
 
         for _data_binding_key, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
+
+        self.logger.info(None, "Responder thread is shut down.")
 
     def _respond(self, data):
         ''' Respond to one request by publishing its records. '''
@@ -873,11 +884,13 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
     def closePort(self):
         """Run when an engine shutdown is requested."""
+        self.logger.info(None, "Shutting down.")
+        self.logger.info(None, "Shutting down the loop thread.")
         self.mqtt_client.disconnect()
         # ToDo: add ability to exit loop after X time
         while self.loop_thread.running:
             time.sleep(1)
-        self.logger.info(None, "Exiting MQTTRequester")
+        self.logger.info(None, "MQTTRequester is shut down.")
         self.logger.shutdown()
 
     def request_records(self, data_binding_name, qos, topic, last_ts):
@@ -947,7 +960,7 @@ class MQTTRequesterLoopThread(threading.Thread):
         for data_binding_name, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
             self.logger.debug(None, f"Closed db {data_binding_name}.")
-        self.logger.info(None, "Thread is shut down.")
+        self.logger.info(None, "Loop thread is shut down.")
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.config.response_topic, self.config.subscribe_qos)

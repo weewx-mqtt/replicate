@@ -135,6 +135,41 @@ class TestMQTTRequester(unittest.TestCase):
                                 # The parsed value reaches the loop thread's config.
                                 self.assertFalse(mock_requester_thread.call_args[0][2].log_mqtt)
 
+    def test_close_port(self):
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTReplicate': {
+                'Requester': {
+                    helpers.random_string(): {
+                        helpers.random_string(): {
+                            'type': 'main',
+                            'secondary_data_binding': helpers.random_string()
+                        }
+                    }
+                }
+            }
+        }
+
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.paho.mqtt'):
+                with mock.patch('user.mqttcommon.Logger') as mock_logger:
+                    with mock.patch('user.mqttreplicate.weewx.manager'):
+                        with mock.patch('user.mqttreplicate.MQTTClient'):
+                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_loop_thread:
+                                # The loop thread has already stopped, so closePort does not wait.
+                                mock_loop_thread.return_value.running = False
+
+                                SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+                                SUT.closePort()
+
+                                SUT.mqtt_client.disconnect.assert_called_once_with()
+                                mock_logger.return_value.info.assert_any_call(None, "Shutting down.")
+                                mock_logger.return_value.info.assert_any_call(None, "Shutting down the loop thread.")
+                                mock_logger.return_value.info.assert_any_call(None, "MQTTRequester is shut down.")
+                                mock_logger.return_value.shutdown.assert_called_once_with()
+
     def test_gen_startup_records(self):
         mock_engine = mock.Mock()
         config_dict = {

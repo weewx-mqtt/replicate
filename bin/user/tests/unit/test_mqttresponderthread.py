@@ -247,6 +247,7 @@ class TestMQTTResponderThread(unittest.TestCase):
 
                         mock_mqtt_client.loop.assert_called_once_with(.1)
                         mock_db_manager.close.assert_called_once()
+                        mock_logger.info.assert_any_call(None, "Responder thread is shut down.")
                         self.assertFalse(SUT.mids)
                         # The happy path must not signal a thread error.
                         mock_thread_error.set.assert_not_called()

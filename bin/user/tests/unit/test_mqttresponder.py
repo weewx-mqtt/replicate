@@ -151,6 +151,9 @@ class TestMQTTResponder(unittest.TestCase):
                                 SUT.shutDown()
 
                                 mock_logger().info.assert_any_call(None, 'Responder not enabled, exiting.')
+                                # A component that never ran does not announce that it is shutting down.
+                                self.assertNotIn(mock.call(None, 'Shutting down.'),
+                                                 mock_logger().info.call_args_list)
 
     def test_shutDown(self):
         mock_engine = mock.Mock()
@@ -169,7 +172,7 @@ class TestMQTTResponder(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttcommon.Logger'):
+            with mock.patch('user.mqttcommon.Logger') as mock_logger:
                 with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                     with mock.patch('user.mqttreplicate.MQTTResponderThread'):
                         with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
@@ -183,12 +186,20 @@ class TestMQTTResponder(unittest.TestCase):
                                     mock_mqtt_client.return_value = mock_client
 
                                     SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+                                    SUT.loop_thread.is_alive.return_value = False
+                                    for thread in SUT.threads:
+                                        thread.is_alive.return_value = False
 
                                     SUT.shutDown()
 
                                     mock_db_manager.close.assert_called_once_with()
                                     mock_client.disconnect.assert_called_once_with()
                                     mock_queue().put.assert_called_once_with(None)
+                                    mock_logger.return_value.info.assert_any_call(None, 'Shutting down.')
+                                    mock_logger.return_value.info.assert_any_call(None, 'Shutting down the loop thread.')
+                                    mock_logger.return_value.info.assert_any_call(None, 'Shutting down the responder threads.')
+                                    mock_logger.return_value.info.assert_any_call(None, 'MQTTResponder is shut down.')
+                                    mock_logger.return_value.error.assert_not_called()
 
     def test_new_archive_record(self):
         mock_engine = mock.Mock()

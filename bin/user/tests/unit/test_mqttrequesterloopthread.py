@@ -120,6 +120,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                     mock_manager.open_manager.assert_called_once()
                     mock_client.loop_forever.assert_called_once_with()
                     mock_db_manager.close.assert_called_once()
+                    mock_logger.info.assert_any_call(None, "Loop thread is shut down.")
 
     def test_on_connect(self):
         mock_logger = mock.Mock()
