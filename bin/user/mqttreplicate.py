@@ -80,6 +80,9 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         self._on_publish = None
         self._on_subscribe = None
 
+        # The disconnect is always logged; a consumer's handler is optional.
+        self.client.on_disconnect = self._client_on_disconnect
+
     # Properties for each supported callback
 
     @property
@@ -116,10 +119,8 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
     @on_disconnect.setter
     def on_disconnect(self, value):
         self._on_disconnect = value
-        if value:
-            self.client.on_disconnect = self._client_on_disconnect
-        else:
-            self.client.on_disconnect = None
+        # The disconnect is always logged; the consumer's handler is optional.
+        self.client.on_disconnect = self._client_on_disconnect
 
     @property
     def on_log(self):
@@ -184,8 +185,14 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         self._on_connect_fail(userdata)
 
     def _client_on_disconnect(self, _client, userdata, _flags, reason_code, _properties):
-        self.logger.debug(None, f"Disconnected with result code {int(reason_code.value)}-{reason_code}")
-        self._on_disconnect(userdata, reason_code.value)
+        rc = int(reason_code.value)
+        msg_text = f"Disconnected with result code {rc}, {paho.mqtt.client.error_string(rc)}"
+        if rc == 0:
+            self.logger.info(None, msg_text)
+        else:
+            self.logger.error(None, msg_text)
+        if self._on_disconnect:
+            self._on_disconnect(userdata, rc)
 
     def _client_on_log(self, _client, userdata, level, msg):
         """ The on_log callback. """
