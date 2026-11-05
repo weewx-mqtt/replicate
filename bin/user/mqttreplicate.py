@@ -311,7 +311,6 @@ class MQTTResponder(weewx.engine.StdService):
         super().__init__(engine, config_dict)
         self.logger = mqttcommon.Logger(self.__class__.__name__,
                                         log_queue=queue.Queue(), log_name=__name__)
-        self.logger.info(None, f"version: {VERSION}")
 
         self.config = parse_responder_config(config_dict, self.logger)
         self.client_id = self.config.client_id
@@ -321,6 +320,8 @@ class MQTTResponder(weewx.engine.StdService):
         if not self.enabled:
             self.logger.info(None, "Responder not enabled, exiting.")
             return
+
+        self.logger.log_environment(config_dict, VERSION)
 
         self.main_data_binding = None
         self.data_bindings = {}
@@ -773,7 +774,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     def __init__(self, config_dict, _engine):
         self.logger = mqttcommon.Logger(self.__class__.__name__,
                                         log_queue=queue.Queue(), log_name=__name__)
-        self.logger.info(None, f"version: {VERSION}")
+        self.logger.log_environment(config_dict, VERSION)
 
         self.config = parse_requester_config(config_dict, self.logger)
         self.client_id = self.config.client_id
