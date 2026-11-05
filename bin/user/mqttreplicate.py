@@ -341,13 +341,13 @@ class MQTTResponder(weewx.engine.StdService):
                 weewx.manager.open_manager(manager_dict)
             if self.data_bindings[data_binding_key]['type'] == 'main':
                 if self.main_data_binding is not None:
-                    raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
+                    raise ValueError(f"Multiple 'main' data bindings found, {self.main_data_binding}, {data_binding_key}.")
                 self.main_data_binding = data_binding_key
 
         self.logger.debug(None, f"data bindings are: {self.data_bindings}")
 
         if self.main_data_binding is None:
-            raise ValueError("No 'main' data bindings found")
+            raise ValueError("No 'main' data bindings found.")
 
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
@@ -420,9 +420,9 @@ class MQTTResponder(weewx.engine.StdService):
     def new_archive_record(self, event):
         ''' Handle the new_archive_record event.'''
         if not self.loop_thread.is_alive():
-            raise ThreadError('Loop thread abnormally ended')
+            raise ThreadError('The loop thread ended abnormally.')
         if self.thread_error.is_set():
-            raise ThreadError('A thread pool thread abnormally ended.')
+            raise ThreadError('A thread pool thread ended abnormally.')
         for data_binding_name, data_binding in self.data_bindings.items():
             if data_binding['type'] == 'main':
                 continue
@@ -503,7 +503,7 @@ class MQTTResponderLoopThread(threading.Thread):
             if not hasattr(msg.properties, 'UserProperty'):
                 self.logger.error(None, f'Request with topic skipped: {msg.topic} '
                                   f'payload: {msg.payload} '
-                                  'has no UserProperty')
+                                  'has no UserProperty.')
 
                 return
 
@@ -518,14 +518,14 @@ class MQTTResponderLoopThread(threading.Thread):
                 self.logger.error(None, f'Request with topic skipped: {msg.topic} '
                                   f'UserProperty: {msg.properties.UserProperty} '
                                   f'payload: {msg.payload} '
-                                  'has no data_binding')
+                                  "has no 'data_binding' UserProperty.")
                 return
 
             if data_binding not in self.data_bindings:
                 self.logger.error(None, f'Request with topic skipped: {msg.topic} '
                                   f'UserProperty: {msg.properties.UserProperty} '
                                   f'payload: {msg.payload} '
-                                  f'has unknown data_binding {data_binding}')
+                                  f"has unknown 'data_binding' {data_binding}.")
                 return
 
             response_topic = msg.properties.ResponseTopic
@@ -821,7 +821,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.logger.debug(None, f"data bindings are: {self.data_bindings}")
 
         if self.main_data_binding is None:
-            raise ValueError("No 'main' data bindings found")
+            raise ValueError("No 'main' data bindings found.")
         self.logger.debug(None, f"main data bindings is: {self.main_data_binding}")
 
     def _add_data_binding(self, config_dict, instance_name, primary_name, binding):
@@ -849,7 +849,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self.data_bindings[data_binding_key]['dbmanager'] = None
         if self.data_bindings[data_binding_key]['type'] == 'main':
             if self.main_data_binding is not None:
-                raise ValueError(f"Multiple 'main' data bindings found: {self.main_data_binding}, {data_binding_key}")
+                raise ValueError(f"Multiple 'main' data bindings found, {self.main_data_binding}, {data_binding_key}.")
             self.main_data_binding = data_binding_key
 
     def _request_missing_records(self):
@@ -915,7 +915,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     def genLoopPackets(self):
         while True:
             if not self.loop_thread.is_alive():
-                raise ThreadError(' Loop thread abnormally ended')
+                raise ThreadError('The loop thread ended abnormally.')
             sleep_time = self.the_time + self.config.loop_interval - time.time()
             if sleep_time > 0:
                 time.sleep(sleep_time)
@@ -1030,7 +1030,7 @@ class MQTTRequesterLoopThread(threading.Thread):
             record = json.loads(msg.payload.decode('utf-8'))
 
             if not hasattr(msg.properties, 'UserProperty'):
-                self.logger.error(None, f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty"')
+                self.logger.error(None, f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty".')
                 return
 
             user_property = msg.properties.UserProperty
@@ -1042,12 +1042,12 @@ class MQTTRequesterLoopThread(threading.Thread):
 
             if not data_binding:
                 self.logger.error(None, f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
-                                  'has no "data_binding" UserProperty')
+                                  'has no "data_binding" UserProperty.')
                 return
 
             if data_binding not in self.data_bindings:
                 self.logger.error(None, f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
-                                  f'has unknow data_binding {data_binding}')
+                                  f"has unknown 'data_binding' {data_binding}.")
                 return
 
             if self.data_bindings[data_binding]['type'] == 'main':
@@ -1056,7 +1056,7 @@ class MQTTRequesterLoopThread(threading.Thread):
             else:
                 self.data_bindings[data_binding]['dbmanager'].addRecord(record)
         except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
-            self.logger.error(None, f"Response Failed with {type(exception)} and reason {exception}.")
+            self.logger.error(None, f"Response failed with {type(exception)} and reason {exception}.")
             self.logger.error(None, f"{traceback.format_exc()}")
 
     def _on_subscribe(self, _userdata, mid):

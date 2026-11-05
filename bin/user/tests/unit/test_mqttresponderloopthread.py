@@ -215,7 +215,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                 # contain the actual unknown data_binding name.
                 mock_queue.put.assert_not_called()
                 self.assertEqual(mock_logger.error.call_count, 1)
-                self.assertIn(f'has unknown data_binding {unknown_data_binding}',
+                self.assertIn(f"has unknown 'data_binding' {unknown_data_binding}.",
                               mock_logger.error.call_args[0][1])
 
 if __name__ == '__main__':
