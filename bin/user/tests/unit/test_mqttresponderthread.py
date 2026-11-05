@@ -59,7 +59,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                                                                      config)
 
             client_id = f'MQTTReplicateRespondThread-{random_int}'
-            mock_client.assert_called_once_with(SUT.logger, client_id, None)
+            mock_client.assert_called_once_with(SUT.logger, client_id, None, log_connection=False)
 
             self.assertEqual(mock_mqtt_client.on_connect, SUT._on_connect)
             self.assertEqual(mock_mqtt_client.on_publish, SUT._on_publish)

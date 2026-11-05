@@ -58,12 +58,13 @@ class ThreadError(Exception):
 
 class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance-attributes
     ''' Wrap paho mqtt to protect from breaking changes. '''
-    def __init__(self, logger, client_id, userdata):
+    def __init__(self, logger, client_id, userdata, log_connection=True):
         if not mqttcommon.has_v2_api():
             raise ValueError("paho mqtt v2 is required.")
 
         self.logger = logger
         self.client_id = client_id
+        self.log_connection = log_connection
         self.client = mqttcommon.create_client(mqttcommon.API_V2_MQTT5,
                                                client_id=client_id,
                                                protocol=paho.mqtt.client.MQTTv5,
@@ -177,8 +178,10 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
     # The  wrappers of the callbacks are next
 
     def _client_on_connect(self, _client, userdata, flags, reason_code, _properties):
-        self.logger.debug(None, f"Connected with result code {int(reason_code.value)}-{reason_code}")
-        self.logger.debug(None, f"(Connected flags {str(flags)}")
+        if self.log_connection:
+            rc = int(reason_code.value)
+            self.logger.info(None, f"Connected with result code {rc}, {paho.mqtt.client.error_string(rc)}")
+            self.logger.info(None, f"Connection flags: {str(flags)}.")
         self._on_connect(userdata)
 
     def _client_on_connect_fail(self, _client, userdata):
@@ -188,7 +191,8 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         rc = int(reason_code.value)
         msg_text = f"Disconnected with result code {rc}, {paho.mqtt.client.error_string(rc)}"
         if rc == 0:
-            self.logger.info(None, msg_text)
+            if self.log_connection:
+                self.logger.info(None, msg_text)
         else:
             self.logger.error(None, msg_text)
         if self._on_disconnect:
@@ -481,9 +485,9 @@ class MQTTResponderLoopThread(threading.Thread):
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.config.request_topic, self.config.subscribe_qos)
-        self.logger.info(None, f"Subscribing to topic {self.config.request_topic} "
-                         f"returned mid {int(mid)} "
-                         f"and result {int(result)}.")
+        self.logger.info(None, f"Subscribing to {self.config.request_topic}, "
+                         f"mid {int(mid)}, "
+                         f"result code {int(result)}.")
 
     def _on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger.get(level, self.logger.info)(None, f"({self.config.client_id}) MQTT log: {msg}")
@@ -580,7 +584,8 @@ class MQTTResponderThread(threading.Thread):
         self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
 
         self.mids = {}
-        self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
+        # Per-request clients connect and disconnect constantly; keep that off the log.
+        self.mqtt_client = MQTTClient(self.logger, self.client_id, None, log_connection=False)
 
         self.mqtt_client.on_connect = self._on_connect
         if config.log_mqtt:
@@ -1007,15 +1012,15 @@ class MQTTRequesterLoopThread(threading.Thread):
 
     def _on_connect(self, _userdata):
         (result, mid) = self.mqtt_client.subscribe(self.config.response_topic, self.config.subscribe_qos)
-        self.logger.info(None, f"Subscribing to {self.config.response_topic} "
-                         f"has a mid {int(mid)} "
-                         f"and result code {int(result)}")
+        self.logger.info(None, f"Subscribing to {self.config.response_topic}, "
+                         f"mid {int(mid)}, "
+                         f"result code {int(result)}.")
         self.response_topic_mid = mid
 
         (result, mid) = self.mqtt_client.subscribe(self.config.archive_topic, self.config.subscribe_qos)
-        self.logger.info(None, f"Subscribing for archive records on {self.config.archive_topic} "
-                         f"has a mid {int(mid)} "
-                         f"and result code {int(result)}")
+        self.logger.info(None, f"Subscribing to {self.config.archive_topic}, "
+                         f"mid {int(mid)}, "
+                         f"result code {int(result)}.")
 
     def _on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger.get(level, self.logger.info)(None, f"({self.config.client_id}) MQTT log: {msg}")
