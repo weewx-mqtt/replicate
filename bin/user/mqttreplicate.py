@@ -276,8 +276,7 @@ def parse_responder_config(config_dict, logger):
 
     exclude_keys = ['password']
     sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
-    logger.debug(None, f"sanitized configuration removed {exclude_keys}")
-    logger.debug(None, f"sanitized_service_dict is {sanitized_service_dict}")
+    logger.debug(None, f"Sanitized configuration (removed: {', '.join(exclude_keys)}): {sanitized_service_dict}.")
 
     if len(service_dict.sections) > 1:
         raise AttributeError("Only one instance is allowed.")
@@ -318,7 +317,7 @@ class MQTTResponder(weewx.engine.StdService):
 
         self.config = parse_responder_config(config_dict, self.logger)
         self.client_id = self.config.client_id
-        self.logger.debug(None, f"Responder main MQTT client is: {self.client_id}")
+        self.logger.debug(None, f"Main MQTT client: {self.client_id}.")
 
         self.enabled = self.config.enabled
         if not self.enabled:
@@ -344,7 +343,7 @@ class MQTTResponder(weewx.engine.StdService):
                     raise ValueError(f"Multiple 'main' data bindings found, {self.main_data_binding}, {data_binding_key}.")
                 self.main_data_binding = data_binding_key
 
-        self.logger.debug(None, f"data bindings are: {self.data_bindings}")
+        self.logger.debug(None, f"Data bindings: {self.data_bindings}.")
 
         if self.main_data_binding is None:
             raise ValueError("No 'main' data bindings found.")
@@ -567,7 +566,7 @@ class MQTTResponderThread(threading.Thread):
         self.config_dict = config_dict
         self.client_id = 'MQTTReplicateRespondThread-' + str(random.randint(1000, 9999))
 
-        self.logger.debug(None, f"Responder catchup MQTT client is: {self.client_id}")
+        self.logger.debug(None, f"Catchup MQTT client: {self.client_id}.")
 
         self.data_bindings = {}
 
@@ -743,8 +742,7 @@ def parse_requester_config(config_dict, logger):
     stn_dict = config_dict['MQTTReplicate']['Requester']
     exclude_keys = ['password']
     sanitized_service_dict = {k: stn_dict[k] for k in set(list(stn_dict.keys())) - set(exclude_keys)}
-    logger.debug(None, f"sanitized configuration removed {exclude_keys}")
-    logger.debug(None, f"sanitized_service_dict is {sanitized_service_dict}")
+    logger.debug(None, f"Sanitized configuration (removed: {', '.join(exclude_keys)}): {sanitized_service_dict}.")
 
     response_topic = stn_dict.get('response_topic', RESPONSE_TOPIC)
     request_topic = stn_dict.get('request_topic', REQUEST_TOPIC)
@@ -783,7 +781,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
         self.config = parse_requester_config(config_dict, self.logger)
         self.client_id = self.config.client_id
-        self.logger.debug(None, f"Requester main MQTT client is: {self.client_id}")
+        self.logger.debug(None, f"Main MQTT client: {self.client_id}.")
 
         self.the_time = time.time()
         self.response_topic = self.config.response_topic
@@ -818,11 +816,11 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
             for primary_name, binding in stn_dict[instance_name].items():
                 self._add_data_binding(config_dict, instance_name, primary_name, binding)
 
-        self.logger.debug(None, f"data bindings are: {self.data_bindings}")
+        self.logger.debug(None, f"Data bindings: {self.data_bindings}.")
 
         if self.main_data_binding is None:
             raise ValueError("No 'main' data bindings found.")
-        self.logger.debug(None, f"main data bindings is: {self.main_data_binding}")
+        self.logger.debug(None, f"Main data binding: {self.main_data_binding}.")
 
     def _add_data_binding(self, config_dict, instance_name, primary_name, binding):
         ''' Add one data binding, tracking the 'main' binding. '''
