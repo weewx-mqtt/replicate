@@ -14,7 +14,7 @@ from pathlib import Path
 if __name__ == '__main__':
     # Duplicated from mqttreplicate.py and install.py: the standalone program must
     # answer --version before the configured runtime paths have been resolved.
-    VERSION = "1.0.0-rc03c"
+    VERSION = "1.1.0"
 
     typical_install_locations = {
         'pip': {

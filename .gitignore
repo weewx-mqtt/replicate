@@ -162,3 +162,6 @@ cython_debug/
 act-artifacts/
 tmp/
 results/
+.codacy/codacy.config.baseline.json
+.codacy/codacy.config.json
+.codacy/generated/
