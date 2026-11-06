@@ -12,6 +12,10 @@ import time
 from pathlib import Path
 
 if __name__ == '__main__':
+    # Duplicated from mqttreplicate.py and install.py: the standalone program must
+    # answer --version before the configured runtime paths have been resolved.
+    VERSION = "1.0.0-rc03c"
+
     typical_install_locations = {
         'pip': {
             'weewx_root': '~/weewx-data/',
@@ -53,7 +57,7 @@ if __name__ == '__main__':
     def requester_options(parser):
         ''' Setup parser when running as the requester. '''
         subparser = parser.add_parser('requester',
-                                      description='ToDo: ',
+                                      description='Run MQTTReplicate as a requester in standalone mode.',
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
 
         common_options(subparser)
@@ -66,7 +70,7 @@ if __name__ == '__main__':
     def responder_options(parser):
         ''' Setup parser when running as the responder. '''
         subparser = parser.add_parser('responder',
-                                      description='ToDo: ',
+                                      description='Run MQTTReplicate as a responder in standalone mode.',
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
 
         common_options(subparser)
@@ -136,7 +140,7 @@ if __name__ == '__main__':
 
         mqtt_requester = mqttreplicate.MQTTRequester(config_dict, engine)
 
-        print("Calling genStartupRecords")
+        print("Calling genStartupRecords.")
         record_count = 0
         prev_datetime = 0
         start_time = time.time()
@@ -144,29 +148,26 @@ if __name__ == '__main__':
             record_count += 1
             time_delta = record['dateTime'] - prev_datetime
             if time_delta != 300:
-                print(f"ERROR: ({record_count}) ({time_delta}) {weeutil.weeutil.timestamp_to_string(record['dateTime'])}")
+                print(f"Unexpected time delta: {time_delta}, record={record_count}, "
+                      f"dateTime={weeutil.weeutil.timestamp_to_string(record['dateTime'])}.")
             prev_datetime = record['dateTime']
             if record_count % 1000 == 0:
-                print(f"REC: ({record_count}) ",
-                      weeutil.weeutil.timestamp_to_string(record['dateTime']),
-                      # weeutil.weeutil.to_sorted_string(record)
-                      )
+                print(f"Record {record_count}: "
+                      f"{weeutil.weeutil.timestamp_to_string(record['dateTime'])}.")
 
         run_time = time.time() - start_time
-        print(f"total record count is {record_count} in {run_time} seconds ({run_time/60} minutes).")
+        print(f"Total record count: {record_count} in {run_time} seconds ({run_time/60} minutes).")
 
         sleep_amount = calculate_sleep(archive_interval, archive_delay)
-        print(f"Sleeping {int(sleep_amount)} seconds")
+        print(f"Sleeping {int(sleep_amount)} seconds.")
         time.sleep(sleep_amount)
 
-        print("Calling genArchiveRecords")
+        print("Calling genArchiveRecords.")
         record_count = 0
         for record in mqtt_requester.genArchiveRecords(None):
             record_count += 1
-            print(f"REC: ({record_count}) ",
-                  weeutil.weeutil.timestamp_to_string(record['dateTime']),
-                  # weeutil.weeutil.to_sorted_string(record)
-                  )
+            print(f"Record {record_count}: "
+                  f"{weeutil.weeutil.timestamp_to_string(record['dateTime'])}.")
 
         mqtt_requester.closePort()
 
@@ -182,7 +183,7 @@ if __name__ == '__main__':
         """ Run it."""
 
         arg_parser = argparse.ArgumentParser()
-        arg_parser.add_argument('--version', action='version', version="MQTTReplicate version is ToDo:")
+        arg_parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
 
         subparsers = arg_parser.add_subparsers(dest='command')
         _ = requester_options(subparsers)
