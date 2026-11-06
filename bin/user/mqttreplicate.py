@@ -494,9 +494,9 @@ class MQTTResponderLoopThread(threading.Thread):
 
     def _on_message(self, _userdata, msg):
         try:
-            self.logger.debug(None, f"Request has, topic: {msg.topic}, "
+            self.logger.debug(None, f"Request, topic: {msg.topic}, "
                               f"properties: {msg.properties} "
-                              f"QOS: {int(msg.qos)}, "
+                              f"qos: {int(msg.qos)}, "
                               f"retain: {msg.retain}, "
                               f"payload: {msg.payload} ")
 
@@ -998,14 +998,14 @@ class MQTTRequesterLoopThread(threading.Thread):
         for data_binding_name, data_binding in self.data_bindings.items():
             if not data_binding['dbmanager']:
                 data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
-                self.logger.debug(None, f"Opened db {data_binding_name}.")
+                self.logger.debug(None, f"Opened database {data_binding_name}.")
 
         self.running = True
         self.mqtt_client.loop_forever()
 
         for data_binding_name, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
-            self.logger.debug(None, f"Closed db {data_binding_name}.")
+            self.logger.debug(None, f"Closed database {data_binding_name}.")
         self.logger.info(None, "Loop thread is shut down.")
         # Only now is the thread done, so a caller waiting on this flag cannot run ahead of it.
         self.running = False
