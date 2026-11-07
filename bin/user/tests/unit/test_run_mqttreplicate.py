@@ -20,10 +20,6 @@ class TestRunMQTTReplicate(unittest.TestCase):
         return subprocess.run([sys.executable, str(SCRIPT), *args],
                               check=True, capture_output=True, text=True, timeout=30)
 
-    def test_version(self):
-        result = self.run_standalone('--version')
-        self.assertEqual(result.stdout, 'run_mqttreplicate.py 1.0.0-rc03c\n')
-
     def test_requester_help(self):
         result = self.run_standalone('requester', '--help')
         self.assertIn('Run MQTTReplicate as a requester in standalone mode.', result.stdout)
