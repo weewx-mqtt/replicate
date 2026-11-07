@@ -181,6 +181,12 @@ source .devenv
   `# pylint: disable=too-many-instance-attributes` comment — pylint does **not**
   exempt dataclasses from R0902, so config dataclasses get one too.
 
+## Commits
+
+Never commit, push, tag or release unless explicitly asked: stage the changes and stop. A
+request to make a change is not permission to commit it, and "do it" does not include
+committing. Propose the commit message and wait for the go-ahead.
+
 ## Cross-repo workflow
 
 Single changes stay in this repository. Cross-repo work (a shared change, rename, wording pass)
