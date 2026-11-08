@@ -18,8 +18,7 @@ WeeWX extension **MQTTReplicate**: replicates WeeWX archive data over MQTT v5 re
 
 - `bin/user/mqttreplicate.py` — almost all the code (~1100 lines): the Requester driver, the
   Responder service, the paho wrapper, the loop threads, and queued logging (see Architecture).
-- `bin/user/tests/unit/` — the real test suite. `bin/user/tests/func/test_template.py` is an
-  empty placeholder.
+- `bin/user/tests/unit/` — the only test suite; there are no func/integ/e2e directories.
 - `bin/user/run_mqttreplicate.py` — standalone runner (Requester/Responder) used from `tmp/`
   scripts; distinct from the module's own `__main__` CLI.
 - `docs/` — Jekyll site; the project README is `docs/readme.md`, not a root `README.md`
@@ -121,9 +120,8 @@ source .devenv
 
 ## Testing conventions and quirks
 
-- Only `bin/user/tests/unit` is real; `bin/user/tests/func/test_template.py` is an empty
-  placeholder. CI runs this repo with `function-test: false`, `integration-test: false`,
-  `e2e-test: false` — do not add suites there expecting CI to run them.
+- Only `bin/user/tests/unit` exists. CI runs this repo with `function-test: false`,
+  `integration-test: false`, `e2e-test: false` — do not add suites expecting CI to run them.
 - Tests mock `MQTTClient`; no MQTT broker is needed (mosquitto is installed
   in CI but unused by the unit suite).
 - New tests: copy an existing test file's header — `# pylint: disable=missing-*-docstring`
