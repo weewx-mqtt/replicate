@@ -53,7 +53,7 @@ export PYTHONPATH="$WEEWX_PYTHONPATH"   # == bin, or bin:../weewx/src
 ## Commands
 
 ```sh
-# all unit tests (currently 138, ~1s)
+# all unit tests
 PYTHONPATH=bin:../weewx/src python3 -m pytest bin/user/tests/unit
 
 # a single test / file
