@@ -46,7 +46,7 @@ export PYTHONPATH="$WEEWX_PYTHONPATH"   # == bin, or bin:../weewx/src
 - Python deps: `paho-mqtt` (2.x locally), `weewx`, `configobj`, `mock`, `pytest`, `coverage`,
   `pylint`.
 - Shortcut scripts (`unittests.sh`, `lint.sh`, `coverage.sh`, `watchunittests.sh`, ...) come from
-  `WEEWX_TOOL_PATH` = `~/weewx_dev/weewx-extensions/development-tools/tools`, a local clone of
+  `WEEWX_TOOL_PATH` = `~/weewx_code/weewx-extensions/development-tools/tools`, a local clone of
   the repo the CI reusable workflows come from. They also assume pyenv. Note `lint.sh` lints all
   of `bin/user/`, a wider scope than CI. `verify.sh` is the full pre-commit gate.
 
@@ -69,7 +69,7 @@ coverage html --include 'bin/user/*.py' --omit bin/user/__init__.py
 
 # before committing: the full gate
 source .devenv
-~/weewx_dev/weewx-extensions/development-tools/tools/verify.sh
+~/weewx_code/weewx-extensions/development-tools/tools/verify.sh
 ```
 
 ## Architecture / behavior
