@@ -35,14 +35,15 @@ source .devenv
 export PYTHONPATH="$WEEWX_PYTHONPATH"   # == bin, or bin:../weewx/src
 ```
 
-- WeeWX must be importable. CI pip-installs it; locally `.devenv` uses the sibling checkout
-  `../weewx` when WeeWX is not installed (WeeWX v5 uses `src/`). Prefix test/lint commands with
-  `PYTHONPATH=bin:../weewx/src` and you get the same result without sourcing.
-- `.devenv` defines `WEEWX_MODULE_NAME`, `WEEWX_PYENV_VERSION=3.10`, `WEEWX_TOOL_PATH`,
-  `WEEWX_LINT_PATHS`, `WEEWX_TEST_SUITES`, and puts the helper scripts on `PATH`. It does **not**
-  export `PYTHONPATH` itself, so `source .devenv` alone does not make bare `pytest` work — export
-  it yourself or use the prefix above. (The helper scripts do `export
-  PYTHONPATH=$WEEWX_PYTHONPATH`, so `source .devenv && unittests.sh` works as-is.)
+- WeeWX must be importable. CI pip-installs it; locally the shared `tools/devenv.sh` uses the
+  sibling checkout `../weewx` when WeeWX is not installed (WeeWX v5 uses `src/`). Prefix
+  test/lint commands with `PYTHONPATH=bin:../weewx/src` and you get the same result without sourcing.
+- `.devenv` sources the shared `tools/devenv.sh`, which sets `WEEWX_MODULE_NAME`,
+  `WEEWX_TOOL_PATH`, `WEEWX_PYENV_VERSION` (the development default from `supported-pythons`, exported
+  as `PYENV_VERSION`), `WEEWX_PYTHONPATH`, and puts the helper scripts on `PATH`; the repository's
+  own lines then add the lint paths and suites it wants.
+- Plain `pytest` needs `PYTHONPATH` exported, as below; the helper scripts do that themselves, so
+  `source .devenv && unittests.sh` works as-is.
 - Python deps: `paho-mqtt` (2.x locally), `weewx`, `configobj`, `mock`, `pytest`, `coverage`,
   `pylint`.
 - Shortcut scripts (`unittests.sh`, `lint.sh`, `coverage.sh`, `watchunittests.sh`, ...) come from
