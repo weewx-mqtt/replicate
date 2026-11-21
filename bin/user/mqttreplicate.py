@@ -35,7 +35,7 @@ if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 1):
     raise ImportError("user.mqttcommon is too old. An older weewx-mqtt extension likely overwrote it during"
                       " install; reinstall or upgrade all the weewx-mqtt extensions.")
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 DRIVER_NAME = 'MQTTRequester'
 DRIVER_VERSION = VERSION
 REQUEST_TOPIC = 'replicate/request'

@@ -10,7 +10,7 @@ import configobj
 
 from weecfg.extension import ExtensionInstaller
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 MQTTREPLICATE_CONFIG = """
 [MQTTReplicate]
