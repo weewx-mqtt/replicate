@@ -1,2 +1,5 @@
-1.1.0
+# Changelog
+
+## [1.1.0]
+
 - Start the changelog. Earlier release history is in the git history and GitHub releases.

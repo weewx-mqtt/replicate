@@ -142,7 +142,7 @@ source .devenv
   sections with full option docs).
 - `VERSION` is duplicated and must stay in sync in two files: `install.py` and
   `bin/user/mqttreplicate.py`.
-- `changes.txt` is the changelog.
+- `CHANGELOG.md` is the changelog.
 - Releases are tagged by `.github/workflows/versioning.yml` (Actions-Us/actions-tagger) on
   GitHub release publish.
 - `run-fetch.yml` syncs this repo from `weewx-mqtt/replicate` upstream daily.
