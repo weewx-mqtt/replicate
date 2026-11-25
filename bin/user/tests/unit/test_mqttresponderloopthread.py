@@ -17,6 +17,14 @@ import random
 
 import user.mqttreplicate
 
+
+def create_responder_loop_thread(logger, client, config=None, data_queue=None, data_bindings=None):
+    """ Build a responder loop thread with the standard collaborator arguments. """
+    if config is None:
+        config = user.mqttreplicate.MQTTResponderConfig()
+    return user.mqttreplicate.MQTTResponderLoopThread(logger, client, config, data_queue, data_bindings)
+
+
 class Properties:
     pass
 
@@ -35,11 +43,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
                                                                 host=host,
                                                                 port=port,
                                                                 keepalive=keepalive)
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 config,
-                                                                 None,
-                                                                 None)
+                SUT = create_responder_loop_thread(mock_logger, mock_client, config, None, None)
 
                 self.assertEqual(mock_client.on_connect, SUT._on_connect)
                 self.assertEqual(mock_client.on_message, SUT._on_message)
@@ -52,11 +56,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
 
-            SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                             mock_client,
-                                                             user.mqttreplicate.MQTTResponderConfig(),
-                                                             None,
-                                                             None)
+            SUT = create_responder_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTResponderConfig(), None, None)
 
             self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_INFO], mock_logger.info)
             self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_NOTICE], mock_logger.info)
@@ -72,11 +72,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
 
-            SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                             mock_client,
-                                                             user.mqttreplicate.MQTTResponderConfig(client_id=client_id),
-                                                             None,
-                                                             None)
+            SUT = create_responder_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTResponderConfig(client_id=client_id), None, None)
 
             # A mapped level dispatches to the mapped logger method.
             SUT._on_log(None, None, user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR, msg)
@@ -93,11 +89,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTResponderConfig(),
-                                                                 None,
-                                                                 None)
+                SUT = create_responder_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTResponderConfig(), None, None)
 
                 SUT.run()
 
@@ -113,12 +105,10 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(
-                    mock_logger,
-                    mock_client,
+                SUT = create_responder_loop_thread(
+                    mock_logger, mock_client,
                     user.mqttreplicate.MQTTResponderConfig(request_topic=topic, subscribe_qos=qos),
-                    None,
-                    None)
+                    None, None)
 
                 mock_client.subscribe.return_value = (random.randint(1, 5), random.randint(6, 10))
 
@@ -142,11 +132,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTResponderConfig(),
-                                                                 mock_queue,
-                                                                 data_bindings)
+                SUT = create_responder_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTResponderConfig(), mock_queue, data_bindings)
 
                 properties_dict = {
                     'UserProperty': [('data_binding', instance_name)],
@@ -186,11 +172,7 @@ class TestMQTTResponderLoopThread(unittest.TestCase):
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt') as mock_mqtt:
 
-                SUT = user.mqttreplicate.MQTTResponderLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTResponderConfig(),
-                                                                 mock_queue,
-                                                                 data_bindings)
+                SUT = create_responder_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTResponderConfig(), mock_queue, data_bindings)
 
                 properties_dict = {
                     'UserProperty': [('data_binding', unknown_data_binding)],

@@ -17,6 +17,29 @@ import helpers
 
 import user.mqttreplicate
 
+_MISSING = object()
+
+
+def create_loop_thread(logger, client, config=None, data_queue=None, data_bindings=None):
+    """ Build a requester loop thread with the standard collaborator arguments. """
+    if config is None:
+        config = user.mqttreplicate.MQTTRequesterConfig()
+    return user.mqttreplicate.MQTTRequesterLoopThread(logger, client, config, data_queue, data_bindings)
+
+
+def create_data_bindings(instance_name, *, dbmanager=_MISSING, manager_dict=_MISSING,
+                         binding_type=_MISSING):
+    """ Build one named data binding, including only the supplied options. """
+    entry = {}
+    if dbmanager is not _MISSING:
+        entry['dbmanager'] = dbmanager
+    if manager_dict is not _MISSING:
+        entry['manager_dict'] = manager_dict
+    if binding_type is not _MISSING:
+        entry['type'] = binding_type
+    return {instance_name: entry}
+
+
 class TestMQTTRequesterLoopThread(unittest.TestCase):
     # pylint: disable=protected-access
     def test_init(self):
@@ -34,11 +57,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                                                                 port=port,
                                                                 keepalive=keepalive)
 
-                SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 config,
-                                                                 None,
-                                                                 None)
+                SUT = create_loop_thread(mock_logger, mock_client, config, None, None)
 
                 self.assertEqual(mock_client.on_connect, SUT._on_connect)
                 self.assertEqual(mock_client.on_message, SUT._on_message)
@@ -55,11 +74,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
 
         with mock.patch('user.mqttreplicate.threading'):
 
-            SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                             mock_client,
-                                                             user.mqttreplicate.MQTTRequesterConfig(),
-                                                             None,
-                                                             None)
+            SUT = create_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTRequesterConfig(), None, None)
 
             self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_INFO], mock_logger.info)
             self.assertEqual(SUT.mqtt_logger[user.mqttreplicate.paho.mqtt.client.MQTT_LOG_NOTICE], mock_logger.info)
@@ -77,11 +92,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
 
             config = user.mqttreplicate.MQTTRequesterConfig(client_id=client_id)
 
-            SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                             mock_client,
-                                                             config,
-                                                             None,
-                                                             None)
+            SUT = create_loop_thread(mock_logger, mock_client, config, None, None)
 
             # A mapped level dispatches to the mapped logger method.
             SUT._on_log(None, None, user.mqttreplicate.paho.mqtt.client.MQTT_LOG_ERR, msg)
@@ -96,22 +107,13 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
         mock_client = mock.Mock()
         mock_db_manager = mock.Mock()
         instance_name = helpers.random_string()
-        data_bindings = {
-            instance_name: {
-                'dbmanager': None,
-                'manager_dict': helpers.random_string(),
-            }
-        }
+        data_bindings = create_data_bindings(instance_name, dbmanager=None, manager_dict=helpers.random_string())
         with mock.patch('user.mqttreplicate.threading') as mock_threading:
             with mock.patch('user.mqttreplicate.paho.mqtt'):
                 with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
                     mock_manager.open_manager.return_value = mock_db_manager
 
-                    SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                     mock_client,
-                                                                     user.mqttreplicate.MQTTRequesterConfig(),
-                                                                     None,
-                                                                     data_bindings)
+                    SUT = create_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTRequesterConfig(), None, data_bindings)
 
                     SUT.run()
 
@@ -127,20 +129,11 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
         mock_logger = mock.Mock()
         mock_client = mock.Mock()
         instance_name = helpers.random_string()
-        data_bindings = {
-            instance_name: {
-                'manager_dict': {},
-                'dbmanager': None,
-            }
-        }
+        data_bindings = create_data_bindings(instance_name, manager_dict={}, dbmanager=None)
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTRequesterConfig(),
-                                                                 None,
-                                                                 data_bindings)
+                SUT = create_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTRequesterConfig(), None, data_bindings)
 
                 mock_client.subscribe.return_value = (random.randint(11, 20), random.randint(1, 10))
 
@@ -152,19 +145,11 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
         mock_logger = mock.Mock()
         mock_client = mock.Mock()
         instance_name = helpers.random_string()
-        data_bindings = {
-            instance_name: {
-                'dbmanager': None,
-            }
-        }
+        data_bindings = create_data_bindings(instance_name, dbmanager=None)
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.paho.mqtt'):
-                SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                 mock_client,
-                                                                 user.mqttreplicate.MQTTRequesterConfig(),
-                                                                 None,
-                                                                 data_bindings)
+                SUT = create_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTRequesterConfig(), None, data_bindings)
 
                 SUT.response_topic_mid = random.randint(1, 10)
                 SUT._on_subscribe(None, SUT.response_topic_mid)
@@ -176,12 +161,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
         mock_client = mock.Mock()
         mock_db_manager = mock.Mock()
         instance_name = helpers.random_string()
-        data_bindings = {
-            instance_name: {
-                'dbmanager': mock_db_manager,
-                'type': None,
-            }
-        }
+        data_bindings = create_data_bindings(instance_name, dbmanager=mock_db_manager, binding_type=None)
 
         data = helpers.random_string()
 
@@ -190,11 +170,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                 with mock.patch('user.mqttreplicate.json') as mock_json:
                     mock_json.loads.return_value = data
 
-                    SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                     mock_client,
-                                                                     user.mqttreplicate.MQTTRequesterConfig(),
-                                                                     None,
-                                                                     data_bindings)
+                    SUT = create_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTRequesterConfig(), None, data_bindings)
 
                     properties_dict = {
                         'UserProperty': [('data_binding', instance_name)]
@@ -219,12 +195,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
         mock_db_manager = mock.Mock()
         mock_data_queue = mock.Mock()
         instance_name = helpers.random_string()
-        data_bindings = {
-            instance_name: {
-                'dbmanager': mock_db_manager,
-                'type': 'main',
-            }
-        }
+        data_bindings = create_data_bindings(instance_name, dbmanager=mock_db_manager, binding_type='main')
 
         data = {'dateTime': helpers.random_string()}
 
@@ -233,11 +204,7 @@ class TestMQTTRequesterLoopThread(unittest.TestCase):
                 with mock.patch('user.mqttreplicate.json') as mock_json:
                     mock_json.loads.return_value = data
 
-                    SUT = user.mqttreplicate.MQTTRequesterLoopThread(mock_logger,
-                                                                     mock_client,
-                                                                     user.mqttreplicate.MQTTRequesterConfig(),
-                                                                     mock_data_queue,
-                                                                     data_bindings)
+                    SUT = create_loop_thread(mock_logger, mock_client, user.mqttreplicate.MQTTRequesterConfig(), mock_data_queue, data_bindings)
 
                     properties_dict = {
                         'UserProperty': [('data_binding', instance_name)]
