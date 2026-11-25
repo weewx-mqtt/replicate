@@ -239,14 +239,6 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         ''' Stop paho's network loop thread. '''
         return self.client.loop_stop()
 
-    def loop_forever(self):
-        ''' Run the network loop forever. '''
-        self.client.loop_forever()
-
-    def loop(self, blocking_time):
-        ''' Run the network loop, checking for new messages every blocking_time. '''
-        self.client.loop(blocking_time)
-
     def publish(self, topic, data, qos, retain, properties=None):
         ''' Publish a MQTT message. '''
         return self.client.publish(topic, data, qos, retain, properties)
