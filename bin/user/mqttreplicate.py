@@ -218,9 +218,23 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         ''' Connect to the MQTT server. '''
         mqttcommon.connect(self.client, mqttcommon.API_V2_MQTT5, host=host, port=port, keepalive=keepalive)
 
+    def connect_async(self, host, port, keepalive, clean_start=True):
+        ''' Start the connection; paho's network loop completes it and retries failures. '''
+        mqttcommon.connect_async(self.client, mqttcommon.API_V2_MQTT5,
+                                 host=host, port=port, keepalive=keepalive,
+                                 clean_start=clean_start)
+
     def disconnect(self):
         ''' Disconnect from the MQTT server. '''
         self.client.disconnect()
+
+    def loop_start(self):
+        ''' Start paho's network loop thread. '''
+        return self.client.loop_start()
+
+    def loop_stop(self):
+        ''' Stop paho's network loop thread. '''
+        return self.client.loop_stop()
 
     def loop_forever(self):
         ''' Run the network loop forever. '''

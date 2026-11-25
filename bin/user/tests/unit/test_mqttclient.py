@@ -64,6 +64,25 @@ class TestMQTTClient(unittest.TestCase):
             None, f"Disconnected with result code 7, {user.mqttreplicate.paho.mqtt.client.error_string(7)}")
         mock_logger.info.assert_not_called()
 
+    def test_the_network_loop_owns_the_connection(self):
+        SUT, _, mock_create_client = self._make_client()
+
+        with mock.patch('user.mqttreplicate.mqttcommon.connect_async') as mock_connect_async:
+            SUT.connect_async('localhost', 1883, 60)
+
+            mock_connect_async.assert_called_once_with(SUT.client,
+                                                       user.mqttreplicate.mqttcommon.API_V2_MQTT5,
+                                                       host='localhost',
+                                                       port=1883,
+                                                       keepalive=60,
+                                                       clean_start=True)
+
+        SUT.loop_start()
+        mock_create_client.return_value.loop_start.assert_called_once_with()
+
+        SUT.loop_stop()
+        mock_create_client.return_value.loop_stop.assert_called_once_with()
+
     def test_a_requested_disconnect_is_informational(self):
         SUT, mock_logger, _ = self._make_client()
         reason_code = mock.Mock(value=0)
