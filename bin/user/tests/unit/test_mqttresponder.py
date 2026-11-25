@@ -10,12 +10,13 @@
 import unittest
 import mock
 
-import configobj
 import random
 
 import helpers
 
 import user.mqttreplicate
+from user.tests.unit.replicate_helpers import (create_responder_service_config,
+                                               patched_responder_service)
 
 class Event:
     def __init__(self, record):
@@ -28,273 +29,147 @@ class TestMQTTResponder(unittest.TestCase):
         instance_name = helpers.random_string()
         primary_name = helpers.random_string()
 
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    'log_mqtt': True,
-                    instance_name: {
-                        primary_name: {
-                            'type': 'main'
-                        }
-                    }
+        config, instance_name, primary_name = create_responder_service_config(section_overrides={'log_mqtt': True})
+
+        with patched_responder_service(queue=True, random_int=random_int) as mocks:
+            SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+
+            client_id = f'MQTTReplicateRespond-{random_int}'
+
+            data_bindings = {
+                f"{instance_name}/{primary_name}": {
+                    'delta': 60,
+                    'type': 'main',
+                    'dbmanager': mocks.db_manager,
                 }
             }
-        }
 
-        config = configobj.ConfigObj(config_dict)
+            mocks.mqtt_client.assert_called_once_with(mocks.logger(), client_id, None)
+            # The thread_error event must be shared with the threads,
+            # so a thread failure is seen by the service.
+            self.assertEqual(SUT.thread_error, mocks.threading.Event())
+            mocks.responder_thread.assert_called_once_with(mocks.logger(),
+                                                           SUT.thread_error,
+                                                           mocks.queue(),
+                                                           SUT.config,
+                                                           config)
+            # The parsed options reach the thread through the config object.
+            self.assertEqual(SUT.config.instance_name, instance_name)
+            self.assertEqual(SUT.config.log_msg_count, 1000)
+            self.assertEqual(SUT.config.throttle_count, 1000)
+            self.assertEqual(SUT.config.throttle_sleep, 1)
+            self.assertEqual(SUT.config.delta, 60)
+            self.assertTrue(SUT.config.log_mqtt)
+            self.assertEqual(SUT.config.host, 'localhost')
+            self.assertEqual(SUT.config.port, 1883)
+            self.assertEqual(SUT.config.keepalive, 60)
+            self.assertEqual(SUT.config.publish_qos, 1)
+            self.assertEqual(SUT.config.wait_for_thread_shutdown, 20)
+            mocks.responder_thread().start.assert_called_once_with()
 
-        with mock.patch('user.mqttreplicate.threading') as mock_threading:
-            with mock.patch('user.mqttcommon.Logger') as mock_logger:
-                with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
-                    with mock.patch('user.mqttreplicate.MQTTResponderThread') as mock_responder_thread:
-                        with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
-                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread') as mock_responder_loop_thread:
-                                with mock.patch('user.mqttreplicate.queue.Queue') as mock_queue:
-                                    with mock.patch('user.mqttreplicate.random.randint', return_value=random_int):
-                                        mock_db_manager = mock.Mock()
-                                        mock_manager.open_manager.return_value = mock_db_manager
+            mocks.loop_thread.assert_called_once_with(mocks.logger(),
+                                                      mocks.client,
+                                                      SUT.config,
+                                                      mocks.queue(),
+                                                      data_bindings)
+            self.assertEqual(SUT.config.client_id, client_id)
+            self.assertEqual(SUT.config.request_topic, f'replicate/request/{instance_name}')
+            mocks.loop_thread().start.assert_called_once_with()
 
-                                        mock_client = mock.Mock()
-                                        mock_mqtt_client.return_value = mock_client
-                                        SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-
-                                        client_id = f'MQTTReplicateRespond-{random_int}'
-
-                                        data_bindings = {
-                                            f"{instance_name}/{primary_name}": {
-                                                'delta': 60,
-                                                'type': 'main',
-                                                'dbmanager': mock_db_manager,
-                                            }
-                                        }
-
-                                        mock_mqtt_client.assert_called_once_with(mock_logger(), client_id, None)
-                                        # The thread_error event must be shared with the threads,
-                                        # so a thread failure is seen by the service.
-                                        self.assertEqual(SUT.thread_error, mock_threading.Event())
-                                        mock_responder_thread.assert_called_once_with(mock_logger(),
-                                                                                      SUT.thread_error,
-                                                                                      mock_queue(),
-                                                                                      SUT.config,
-                                                                                      config)
-                                        # The parsed options reach the thread through the config object.
-                                        self.assertEqual(SUT.config.instance_name, instance_name)
-                                        self.assertEqual(SUT.config.log_msg_count, 1000)
-                                        self.assertEqual(SUT.config.throttle_count, 1000)
-                                        self.assertEqual(SUT.config.throttle_sleep, 1)
-                                        self.assertEqual(SUT.config.delta, 60)
-                                        self.assertTrue(SUT.config.log_mqtt)
-                                        self.assertEqual(SUT.config.host, 'localhost')
-                                        self.assertEqual(SUT.config.port, 1883)
-                                        self.assertEqual(SUT.config.keepalive, 60)
-                                        self.assertEqual(SUT.config.publish_qos, 1)
-                                        self.assertEqual(SUT.config.wait_for_thread_shutdown, 20)
-                                        mock_responder_thread().start.assert_called_once_with()
-
-                                        mock_responder_loop_thread.assert_called_once_with(mock_logger(),
-                                                                                           mock_client,
-                                                                                           SUT.config,
-                                                                                           mock_queue(),
-                                                                                           data_bindings)
-                                        self.assertEqual(SUT.config.client_id, client_id)
-                                        self.assertEqual(SUT.config.request_topic, f'replicate/request/{instance_name}')
-                                        mock_responder_loop_thread().start.assert_called_once_with()
-
-                                        self.assertDictEqual(SUT.data_bindings, data_bindings)
+            self.assertDictEqual(SUT.data_bindings, data_bindings)
 
     def test_init_no_instance(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                }
-            }
-        }
+        config, _, _ = create_responder_service_config(include_instance=False)
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_responder_service():
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttcommon.Logger'):
-                with mock.patch('user.mqttreplicate.weewx.manager'):
-                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
-
-                                # A Responder section with no instance must raise,
-                                # not blow up with an IndexError.
-                                with self.assertRaises(AttributeError):
-                                    user.mqttreplicate.MQTTResponder(mock_engine, config)
+            # A Responder section with no instance must raise,
+            # not blow up with an IndexError.
+            with self.assertRaises(AttributeError):
+                user.mqttreplicate.MQTTResponder(mock_engine, config)
 
     def test_shutDown_disabled(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    'enable': False,
-                    'wait_for_thread_shutdown': 3
-                }
-            }
-        }
+        config, _, _ = create_responder_service_config(
+            include_instance=False,
+            section_overrides={'enable': False, 'wait_for_thread_shutdown': 3})
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_responder_service(log_direct=True) as mocks:
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttcommon.Logger') as mock_logger:
-                with mock.patch('user.mqttreplicate.weewx.manager'):
-                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
-                                with mock.patch('user.mqttreplicate.log_direct') as mock_log_direct:
+            SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+            self.assertFalse(SUT.enabled)
 
-                                    SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-                                    self.assertFalse(SUT.enabled)
+            # A disabled responder must shut down without error,
+            # even though it was never fully initialized.
+            SUT.shutDown()
 
-                                    # A disabled responder must shut down without error,
-                                    # even though it was never fully initialized.
-                                    SUT.shutDown()
-
-                                    mock_logger().info.assert_any_call(None, 'Responder not enabled, exiting.')
-                                    # A component that never ran does not announce that it is shutting down.
-                                    self.assertNotIn(mock.call(None, 'Shutting down.'),
-                                                     mock_logger().info.call_args_list)
-                                    # The logger thread is still stopped, with the configured wait.
-                                    mock_logger().shutdown.assert_called_once_with(3)
-                                    mock_log_direct.assert_not_called()
+            mocks.logger().info.assert_any_call(None, 'Responder not enabled, exiting.')
+            # A component that never ran does not announce that it is shutting down.
+            self.assertNotIn(mock.call(None, 'Shutting down.'),
+                             mocks.logger().info.call_args_list)
+            # The logger thread is still stopped, with the configured wait.
+            mocks.logger().shutdown.assert_called_once_with(3)
+            mocks.log_direct.assert_not_called()
 
     def test_shutDown(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    'wait_for_thread_shutdown': 3,
-                    helpers.random_string(): {
-                        helpers.random_string(): {
-                            'type': 'main'
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_responder_service_config(section_overrides={'wait_for_thread_shutdown': 3})
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_responder_service(queue=True, log_direct=True) as mocks:
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttcommon.Logger') as mock_logger:
-                with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
-                    with mock.patch('user.mqttreplicate.MQTTResponderThread'):
-                        with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
-                            with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
-                                with mock.patch('user.mqttreplicate.queue.Queue') as mock_queue:
-                                    with mock.patch('user.mqttreplicate.log_direct') as mock_log_direct:
+            SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+            SUT.loop_thread.is_alive.return_value = False
+            for thread in SUT.threads:
+                thread.is_alive.return_value = False
 
-                                        mock_db_manager = mock.Mock()
-                                        mock_manager.open_manager.return_value = mock_db_manager
+            SUT.shutDown()
 
-                                        mock_client = mock.Mock()
-                                        mock_mqtt_client.return_value = mock_client
-
-                                        SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-                                        SUT.loop_thread.is_alive.return_value = False
-                                        for thread in SUT.threads:
-                                            thread.is_alive.return_value = False
-
-                                        SUT.shutDown()
-
-                                        mock_db_manager.close.assert_called_once_with()
-                                        mock_client.disconnect.assert_called_once_with()
-                                        mock_queue().put.assert_called_once_with(None)
-                                        SUT.loop_thread.join.assert_called_once_with(3)
-                                        for thread in SUT.threads:
-                                            thread.join.assert_called_once_with(3)
-                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down.')
-                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down the loop thread.')
-                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down the responder threads.')
-                                        mock_logger.return_value.info.assert_any_call(None, 'Shutting down the logger thread.')
-                                        mock_logger.return_value.shutdown.assert_called_once_with(3)
-                                        # The completion is logged directly, because the logger thread has stopped by then.
-                                        mock_log_direct.assert_called_once_with('MQTTResponder', 'INFO',
-                                                                                "MQTTResponder is shut down.")
+            mocks.db_manager.close.assert_called_once_with()
+            mocks.client.disconnect.assert_called_once_with()
+            mocks.queue().put.assert_called_once_with(None)
+            SUT.loop_thread.join.assert_called_once_with(3)
+            for thread in SUT.threads:
+                thread.join.assert_called_once_with(3)
+            mocks.logger.return_value.info.assert_any_call(None, 'Shutting down.')
+            mocks.logger.return_value.info.assert_any_call(None, 'Shutting down the loop thread.')
+            mocks.logger.return_value.info.assert_any_call(None, 'Shutting down the responder threads.')
+            mocks.logger.return_value.info.assert_any_call(None, 'Shutting down the logger thread.')
+            mocks.logger.return_value.shutdown.assert_called_once_with(3)
+            # The completion is logged directly, because the logger thread has stopped by then.
+            mocks.log_direct.assert_called_once_with('MQTTResponder', 'INFO',
+                                                     "MQTTResponder is shut down.")
 
     def test_new_archive_record(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    helpers.random_string(): {
-                        f'{helpers.random_string()}-secondary': {
-                        },
-                        f'{helpers.random_string()}-main': {
-                            'type': 'main'
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_responder_service_config(secondary_bindings=(helpers.random_string() + '-secondary',))
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_responder_service(paho=True, use_json=True) as mocks:
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger'):
-                    with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
-                        with mock.patch('user.mqttreplicate.MQTTResponderThread'):
-                            with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
-                                with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
-                                    with mock.patch('user.mqttreplicate.json'):
-                                        mock_db_manager = mock.Mock()
-                                        mock_manager.open_manager.return_value = mock_db_manager
+            SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
 
-                                        mock_client = mock.Mock()
-                                        mock_mqtt_client.return_value = mock_client
+            event = Event({'dateTime': random.randint(9999, 99999)})
 
-                                        SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
+            SUT.thread_error.is_set.return_value = False
+            SUT.new_archive_record(event)
 
-                                        event = Event({'dateTime': random.randint(9999, 99999)})
-
-                                        SUT.thread_error.is_set.return_value = False
-                                        SUT.new_archive_record(event)
-
-                                        mock_db_manager.getRecord.assert_called_once_with(event.record['dateTime'], max_delta=60)
-                                        self.assertEqual(mock_client.publish.call_count, 2)
+            mocks.db_manager.getRecord.assert_called_once_with(event.record['dateTime'], max_delta=60)
+            self.assertEqual(mocks.client.publish.call_count, 2)
 
     def test_new_archive_record_thread_error(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    helpers.random_string(): {
-                        f'{helpers.random_string()}-main': {
-                            'type': 'main'
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_responder_service_config()
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_responder_service(paho=True, use_json=True):
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger'):
-                    with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
-                        with mock.patch('user.mqttreplicate.MQTTResponderThread'):
-                            with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
-                                with mock.patch('user.mqttreplicate.MQTTResponderLoopThread'):
-                                    with mock.patch('user.mqttreplicate.json'):
-                                        mock_db_manager = mock.Mock()
-                                        mock_manager.open_manager.return_value = mock_db_manager
+            SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
 
-                                        mock_client = mock.Mock()
-                                        mock_mqtt_client.return_value = mock_client
+            event = Event({'dateTime': random.randint(9999, 99999)})
 
-                                        SUT = user.mqttreplicate.MQTTResponder(mock_engine, config)
-
-                                        event = Event({'dateTime': random.randint(9999, 99999)})
-
-                                        # A set thread_error event must raise a ThreadError.
-                                        SUT.thread_error.is_set.return_value = True
-                                        with self.assertRaises(user.mqttreplicate.ThreadError):
-                                            SUT.new_archive_record(event)
+            # A set thread_error event must raise a ThreadError.
+            SUT.thread_error.is_set.return_value = True
+            with self.assertRaises(user.mqttreplicate.ThreadError):
+                SUT.new_archive_record(event)
 
 if __name__ == '__main__':
     helpers.run_tests()
