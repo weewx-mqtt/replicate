@@ -74,7 +74,8 @@ class TestMQTTResponder(unittest.TestCase):
                                                            SUT.thread_error,
                                                            mocks.queue(),
                                                            SUT.config,
-                                                           config)
+                                                           config,
+                                                           mocks.client)
             # The parsed options reach the thread through the config object.
             self.assertEqual(SUT.config.instance_name, instance_name)
             self.assertEqual(SUT.config.log_msg_count, 1000)

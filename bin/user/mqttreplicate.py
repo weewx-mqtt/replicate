@@ -5,6 +5,7 @@
 #
 ''' Replicate WeeWX dstabases using MQTT request/response functionality.'''
 import argparse
+import collections
 import dataclasses
 import json
 import logging
@@ -382,7 +383,8 @@ class MQTTResponder(weewx.engine.StdService):
                                          self.thread_error,
                                          self.data_queue,
                                          self.config,
-                                         config_dict)
+                                         config_dict,
+                                         self.mqtt_client)
             thread.start()
             self.threads.append(thread)
 
@@ -542,7 +544,8 @@ class MQTTResponderThread(threading.Thread):
                  thread_error,
                  data_queue,
                  config,
-                 config_dict):
+                 config_dict,
+                 mqtt_client):
         threading.Thread.__init__(self)
         self.thread_id = threading.get_native_id()
         self.logger = logger
@@ -550,9 +553,7 @@ class MQTTResponderThread(threading.Thread):
         self.data_queue = data_queue
         self.config = config
         self.config_dict = config_dict
-        self.client_id = 'MQTTReplicateRespondThread-' + str(random.randint(1000, 9999))
-
-        self.logger.debug(None, f"Catchup MQTT client: {self.client_id}.")
+        self.mqtt_client = mqtt_client
 
         self.data_bindings = {}
 
@@ -566,16 +567,9 @@ class MQTTResponderThread(threading.Thread):
             self.data_bindings[data_binding_key]['manager_dict'] = \
                 weewx.manager.get_manager_dict_from_config(config_dict, data_binding_name)
 
-        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
-
-        self.mids = {}
-        # Per-request clients connect and disconnect constantly; keep that off the log.
-        self.mqtt_client = MQTTClient(self.logger, self.client_id, None, log_connection=False)
-
-        self.mqtt_client.on_connect = self._on_connect
-        if config.log_mqtt:
-            self.mqtt_client.on_log = self._on_log
-        self.mqtt_client.on_publish = self._on_publish
+        # A bounded window of publishes paho has not confirmed yet. Without it, a
+        # backfill would hand paho thousands of messages at once.
+        self.inflight = collections.deque()
 
     def run(self):
         ''' Publish the data. '''
@@ -609,9 +603,6 @@ class MQTTResponderThread(threading.Thread):
         ''' Respond to one request by publishing its records. '''
         self.logger.debug(None, f"In MQTTResponderThread.run request: {data}")
 
-        # ToDo: Wait for connection?
-        self.mqtt_client.connect(self.config.host, self.config.port, self.config.keepalive)
-
         record_count = self._publish_records(data)
 
         self.logger.info(None, f'Responding/publishing topic {data["topic"]} '
@@ -619,8 +610,7 @@ class MQTTResponderThread(threading.Thread):
                          f'qos {self.config.publish_qos} '
                          f'properties {data["properties"]} '
                          f'with records: {record_count}.')
-        self._wait_for_publish(data)
-        self.mqtt_client.disconnect()
+        self._flush_inflight(data)
 
     def _publish_records(self, data):
         ''' Publish the batch of records for one request; return the record count. '''
@@ -644,10 +634,8 @@ class MQTTResponderThread(threading.Thread):
                                   f"{paho.mqtt.client.error_string(mqtt_message_info.rc)} "
                                   f"responding/publishing on topic {data['topic']}, "
                                   f"properties {data['properties']}, payload: {payload}.")
-
-            self.mqtt_client.loop(.1)
-
-            self._track_mid(mqtt_message_info)
+            else:
+                self._track_inflight(mqtt_message_info)
 
             if record_count % self.config.log_msg_count == 0:
                 self.logger.info(None, f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
@@ -658,42 +646,53 @@ class MQTTResponderThread(threading.Thread):
 
         return record_count
 
-    def _track_mid(self, mqtt_message_info):
-        ''' Record a published message 'mid' until _on_publish reports it done. '''
-        # on_publish can fire before the publish call returns, so it may have
-        # already tracked the mid; otherwise start tracking it here.
-        if mqtt_message_info.mid in self.mids:
-            del self.mids[mqtt_message_info.mid]
-        else:
-            self.mids[mqtt_message_info.mid] = {}
-            self.mids[mqtt_message_info.mid]['time_stamp'] = time.time()
-            self.mids[mqtt_message_info.mid]['qos'] = self.config.publish_qos
+    def _track_inflight(self, mqtt_message_info):
+        ''' Add a publish to the in-flight window, waiting for the oldest when full. '''
+        self._prune_inflight()
+        self.inflight.append(mqtt_message_info)
+        if len(self.inflight) > self.config.throttle_count:
+            self._wait_for_oldest()
 
-    def _wait_for_publish(self, data):
-        ''' Wait for the outstanding messages to be published. '''
-        # Bound the wait by the keepalive, so a lost connection
-        # does not hang the thread forever.
-        wait_start = time.time()
-        while self.mids:
-            if time.time() - wait_start > self.config.keepalive:
+    def _prune_inflight(self):
+        ''' Drop publishes paho has already confirmed. '''
+        while self.inflight:
+            try:
+                if not self.inflight[0].is_published():
+                    break
+            except (ValueError, RuntimeError):
+                pass
+            self.inflight.popleft()
+
+    def _wait_for_oldest(self):
+        ''' Wait for the oldest in-flight publish, so paho's queue stays bounded. '''
+        if not self.inflight:
+            return
+        mqtt_message_info = self.inflight.popleft()
+        try:
+            mqtt_message_info.wait_for_publish(self.config.keepalive)
+        except (ValueError, RuntimeError):
+            pass
+
+    def _flush_inflight(self, data):
+        ''' Wait for the request's outstanding publishes to be confirmed. '''
+        if not self.inflight:
+            return
+
+        # Bound the wait by the keepalive, so a lost connection does not hang the thread.
+        deadline = time.time() + self.config.keepalive
+        while self.inflight:
+            remaining = deadline - time.time()
+            if remaining <= 0:
                 self.logger.error(None, f'Timed out after {self.config.keepalive} seconds '
-                                  f'waiting for {len(self.mids)} messages '
+                                  f'waiting for {len(self.inflight)} messages '
                                   f'to be published on topic {data["topic"]}.')
-                break
-            self.mqtt_client.loop(1)
-
-    def _on_connect(self, _userdata):
-        pass
-
-    def _on_publish(self, _userdata, mid):
-        if mid in self.mids:
-            del self.mids[mid]
-        else:
-            # The publish call had not returned when on_publish fired.
-            self.mids[mid] = {}
-
-    def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger.get(level, self.logger.info)(None, f"Client {self.client_id} MQTT log: {msg}")
+                self.inflight.clear()
+                return
+            mqtt_message_info = self.inflight.popleft()
+            try:
+                mqtt_message_info.wait_for_publish(remaining)
+            except (ValueError, RuntimeError):
+                pass
 
 def loader(config_dict, engine):
     """ Load and return the driver. """
