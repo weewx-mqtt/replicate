@@ -91,5 +91,5 @@ The default value is 2.
 ### wait_for_thread_shutdown
 
 The time in seconds to wait for a thread to stop when shutting down.
-This applies to the loop thread and the logger thread.
+This applies to the logger thread.
 The default value is 20.

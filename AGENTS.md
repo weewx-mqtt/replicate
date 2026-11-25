@@ -17,7 +17,7 @@ WeeWX extension **MQTTReplicate**: replicates WeeWX archive data over MQTT v5 re
 ## Layout
 
 - `bin/user/mqttreplicate.py` — almost all the code (~1100 lines): the Requester driver, the
-  Responder service, the paho wrapper, the loop threads, and queued logging (see Architecture).
+  Responder service, the paho wrapper, the responder threads, and queued logging (see Architecture).
 - `bin/user/tests/unit/` — the only test suite; there are no func/integ/e2e directories.
 - `bin/user/run_mqttreplicate.py` — standalone runner (Requester/Responder) used from `tmp/`
   scripts; distinct from the module's own `__main__` CLI.
@@ -81,11 +81,15 @@ source .devenv
 - `MQTTResponder` — WeeWX **service** (primary side), registered in `install.py` as
   `restful_services = user.mqttreplicate.MQTTResponder`. It follows the same pattern:
   `parse_responder_config()` into an `MQTTResponderConfig` dataclass (`self.config`).
-- `MQTTClient` — thin wrapper over paho-mqtt's v2 api. The reconnect delays are fixed at the
-  paho defaults (1 to 128 seconds); they are not configurable.
-- `*LoopThread`/`*Thread` classes run the MQTT loops; they must be joined on shutdown.
-  They take the parsed config object rather than loose options; the Responder catchup
-  thread also takes the raw `config_dict` (for `get_manager_dict_from_config`).
+- `MQTTClient` — thin wrapper over paho-mqtt's v2 api. The connection is started with
+  `connect_async()` and the network loop is started with `loop_start()` / stopped with `loop_stop()`;
+  paho completes the first connection, retries on failure, and owns the reconnects, so a broker that is
+  down at startup is retried in place. The reconnect delays are fixed at the paho defaults (1 to 128
+  seconds); they are not configurable.
+- The MQTT connection is owned by paho's network loop; no component runs it directly. The Responder
+  keeps a pool of threads over the request queue, joined on shutdown; the pool threads publish through
+  the service's shared client, bounded by a fixed in-flight window (`throttle_count`) and confirmed via
+  `MQTTMessageInfo.wait_for_publish`.
 - **Config contract:** each side must have **exactly one** binding with `type = main`
   (0 or 2+ raise `ValueError` at construction). The Requester instance/binding names
   (e.g. `[[[weewx]]]`/`[[[[wx_binding]]]]`) must match the Responder's, but that pairing
