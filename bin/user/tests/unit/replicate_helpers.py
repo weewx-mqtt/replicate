@@ -11,6 +11,7 @@ import contextlib
 import mock
 from types import SimpleNamespace
 
+import user.mqttreplicate
 from user.tests.unit.helpers import random_string
 
 
@@ -72,6 +73,34 @@ def patched_requester(*, random_int=None, log_direct=False):
             direct = stack.enter_context(mock.patch('user.mqttreplicate.log_direct'))
         yield SimpleNamespace(logger=logger, manager=manager, mqtt_client=mqtt_client,
                               loop_thread=loop_thread, randint=randint, log_direct=direct)
+
+
+def create_responder_thread_config_dict(*, instance_name=None, binding_name=None):
+    """ Build a responder-thread config and return it with its generated names. """
+    instance_name = random_string() if instance_name is None else instance_name
+    binding_name = random_string() if binding_name is None else binding_name
+    config = configobj.ConfigObj({'MQTTReplicate': {'Responder': {instance_name: {binding_name: {}}}}})
+    return config, instance_name, binding_name
+
+
+def create_responder_thread_config(**overrides):
+    """ Build a responder thread config with per-test overrides. """
+    return user.mqttreplicate.MQTTResponderConfig(**overrides)
+
+
+@contextlib.contextmanager
+def patched_responder_thread(*, use_time=False, random_int=None):
+    """ Patch the thread's collaborators, including Logger (required with threading). """
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch('user.mqttreplicate.threading'))
+        stack.enter_context(mock.patch('user.mqttcommon.Logger'))
+        manager = stack.enter_context(mock.patch('user.mqttreplicate.weewx.manager'))
+        client = stack.enter_context(mock.patch('user.mqttreplicate.MQTTClient'))
+        time_mock = stack.enter_context(mock.patch('user.mqttreplicate.time')) if use_time else None
+        randint = None
+        if random_int is not None:
+            randint = stack.enter_context(mock.patch('user.mqttreplicate.random.randint', return_value=random_int))
+        yield SimpleNamespace(manager=manager, client=client, time=time_mock, randint=randint)
 
 
 @contextlib.contextmanager

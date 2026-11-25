@@ -10,7 +10,6 @@
 import unittest
 import mock
 
-import configobj
 from collections import namedtuple
 import random
 import time
@@ -18,26 +17,14 @@ import time
 import helpers
 
 import user.mqttreplicate
+from user.tests.unit.replicate_helpers import create_responder_thread_config_dict
 
 class TestMQTTResponderThread(unittest.TestCase):
     def test_init(self):
         mock_logger = mock.Mock()
         random_int = random.randint(1, 9999)
-        instance_name = helpers.random_string()
-        data_binding_name = helpers.random_string()
 
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        data_binding_name: {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, data_binding_name = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
@@ -76,21 +63,8 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_mqtt_logger_levels(self):
         mock_logger = mock.Mock()
-        instance_name = helpers.random_string()
-        data_binding_name = helpers.random_string()
 
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        data_binding_name: {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, _ = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
@@ -121,22 +95,9 @@ class TestMQTTResponderThread(unittest.TestCase):
     def test_on_log(self):
         mock_logger = mock.Mock()
         random_int = random.randint(1, 9999)
-        instance_name = helpers.random_string()
-        data_binding_name = helpers.random_string()
         msg = helpers.random_string()
 
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        data_binding_name: {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, _ = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
@@ -171,20 +132,7 @@ class TestMQTTResponderThread(unittest.TestCase):
         port = helpers.random_string()
         keepalive = helpers.random_string()
         publish_qos = helpers.random_string()
-        instance_name = helpers.random_string()
-        binding_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        binding_name: {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, binding_name = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
@@ -254,20 +202,7 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_run_publish_wait_timeout(self):
         mock_logger = mock.Mock()
-        instance_name = helpers.random_string()
-        binding_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        binding_name: {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, binding_name = create_responder_thread_config_dict()
 
         host = helpers.random_string()
         port = helpers.random_string()
@@ -336,20 +271,7 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_run_has_exception(self):
         mock_logger = mock.Mock()
-        instance_name = helpers.random_string()
-        binding_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        binding_name: {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, binding_name = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
@@ -396,19 +318,7 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_on_publish_all_responses_published(self):
         mock_logger = mock.Mock()
-        instance_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        helpers.random_string(): {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, _ = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager'):
@@ -436,19 +346,7 @@ class TestMQTTResponderThread(unittest.TestCase):
 
     def test_on_publish_still_publishing(self):
         mock_logger = mock.Mock()
-        instance_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Responder': {
-                    instance_name: {
-                        helpers.random_string(): {
-                        }
-                    }
-                }
-            }
-        }
-
-        config = configobj.ConfigObj(config_dict)
+        config, instance_name, _ = create_responder_thread_config_dict()
 
         with mock.patch('user.mqttreplicate.threading'):
             with mock.patch('user.mqttreplicate.weewx.manager'):
