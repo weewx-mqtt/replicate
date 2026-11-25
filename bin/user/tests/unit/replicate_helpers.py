@@ -64,7 +64,6 @@ def patched_requester(*, random_int=None, log_direct=False):
         logger = stack.enter_context(mock.patch('user.mqttcommon.Logger'))
         manager = stack.enter_context(mock.patch('user.mqttreplicate.weewx.manager'))
         mqtt_client = stack.enter_context(mock.patch('user.mqttreplicate.MQTTClient'))
-        loop_thread = stack.enter_context(mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'))
         randint = None
         if random_int is not None:
             randint = stack.enter_context(mock.patch('user.mqttreplicate.random.randint', return_value=random_int))
@@ -72,7 +71,7 @@ def patched_requester(*, random_int=None, log_direct=False):
         if log_direct:
             direct = stack.enter_context(mock.patch('user.mqttreplicate.log_direct'))
         yield SimpleNamespace(logger=logger, manager=manager, mqtt_client=mqtt_client,
-                              loop_thread=loop_thread, randint=randint, log_direct=direct)
+                              randint=randint, log_direct=direct)
 
 
 def create_responder_thread_config_dict(*, instance_name=None, binding_name=None):

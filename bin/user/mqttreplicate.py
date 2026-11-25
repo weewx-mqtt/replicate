@@ -41,6 +41,8 @@ DRIVER_VERSION = VERSION
 REQUEST_TOPIC = 'replicate/request'
 RESPONSE_TOPIC = 'replicate/response'
 ARCHIVE_TOPIC = 'replicate/archive'
+# How long the requester waits for its subscriptions before asking for catchup data.
+CONNECT_TIMEOUT = 30
 
 
 def log_direct(name, log_type, msg_text):
@@ -805,19 +807,25 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         self._build_data_bindings(config_dict)
 
         self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
+        self.mqtt_client.on_connect = self._on_connect
+        if self.config.log_mqtt:
+            self.mqtt_client.on_log = self._on_log
+        self.mqtt_client.on_message = self._on_message
+        self.mqtt_client.on_subscribe = self._on_subscribe
+
+        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
+        self.response_topic_mid = None
+        self.subscribed = threading.Event()
 
         self.data_queue = queue.PriorityQueue()
 
-        self.loop_thread = MQTTRequesterLoopThread(self.logger,
-                                                   self.mqtt_client,
-                                                   self.config,
-                                                   self.data_queue,
-                                                   self.data_bindings)
-        self.loop_thread.start()
+        # paho's network loop owns the first connection and every reconnect.
+        self.mqtt_client.connect_async(self.config.host, self.config.port, self.config.keepalive)
+        self.mqtt_client.loop_start()
 
         self.logger.debug(None, "Waiting for subscriptions to be set.")
-        while not self.loop_thread.subscribed:
-            time.sleep(1)
+        if not self.subscribed.wait(CONNECT_TIMEOUT):
+            self.logger.error(None, f"Subscriptions were not set within {CONNECT_TIMEOUT} seconds.")
 
         # Request any possible missing records
         # Do it now, so hopefully queue is primed when genStartupRecords is called
@@ -858,7 +866,7 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
         if self.data_bindings[data_binding_key]['last_good_timestamp'] is None:
             self.data_bindings[data_binding_key]['last_good_timestamp'] = 0
 
-        self.data_bindings[data_binding_key]['dbmanager'] = None
+        self.data_bindings[data_binding_key]['dbmanager'] = db_manager
         if self.data_bindings[data_binding_key]['type'] == 'main':
             if self.main_data_binding is not None:
                 raise ValueError(f"Multiple 'main' data bindings found, {self.main_data_binding}, {data_binding_key}.")
@@ -880,6 +888,62 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                                  self.config.publish_qos,
                                  self.data_bindings[self.main_data_binding]['request_topic'],
                                  self.data_bindings[self.main_data_binding]['last_good_timestamp'])
+
+    def _on_connect(self, _userdata):
+        ''' Subscribe to the topics the requester listens to. '''
+        try:
+            (result, mid) = self.mqtt_client.subscribe(self.config.response_topic, self.config.subscribe_qos)
+            self.logger.info(None, f"Subscribing to {self.config.response_topic}, "
+                             f"mid {int(mid)}, result code {int(result)}.")
+            self.response_topic_mid = mid
+
+            (result, mid) = self.mqtt_client.subscribe(self.config.archive_topic, self.config.subscribe_qos)
+            self.logger.info(None, f"Subscribing to {self.config.archive_topic}, "
+                             f"mid {int(mid)}, result code {int(result)}.")
+        except Exception as exception:  # (want to catch all) pylint: disable=broad-exception-caught
+            # paho's network thread must not die on a callback exception.
+            self.logger.error(None, f"Subscribing failed with {type(exception)} and reason {exception}.")
+
+    def _on_log(self, _client, _userdata, level, msg):
+        self.mqtt_logger.get(level, self.logger.info)(None, f"({self.config.client_id}) MQTT log: {msg}")
+
+    def _on_message(self, _userdata, msg):
+        try:
+            record = json.loads(msg.payload.decode('utf-8'))
+
+            if not hasattr(msg.properties, 'UserProperty'):
+                self.logger.error(None, f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty".')
+                return
+
+            user_property = msg.properties.UserProperty
+            data_binding = None
+            for keyword_value in user_property:
+                if keyword_value[0] == 'data_binding':
+                    data_binding = keyword_value[1]
+                    break
+
+            if not data_binding:
+                self.logger.error(None, f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
+                                  'has no "data_binding" UserProperty.')
+                return
+
+            if data_binding not in self.data_bindings:
+                self.logger.error(None, f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
+                                  f"has unknown 'data_binding' {data_binding}.")
+                return
+
+            if self.data_bindings[data_binding]['type'] == 'main':
+                # For all records from the 'main' db, create an archive_record
+                self.data_queue.put((record['dateTime'], record))
+            else:
+                self.data_bindings[data_binding]['dbmanager'].addRecord(record)
+        except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
+            self.logger.error(None, f"Response failed with {type(exception)} and reason {exception}.")
+            self.logger.error(None, f"{traceback.format_exc()}")
+
+    def _on_subscribe(self, _userdata, mid):
+        if mid == self.response_topic_mid:
+            self.subscribed.set()
 
     @property
     def hardware_name(self):
@@ -926,8 +990,6 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
 
     def genLoopPackets(self):
         while True:
-            if not self.loop_thread.is_alive():
-                raise ThreadError('The loop thread ended abnormally.')
             sleep_time = self.the_time + self.config.loop_interval - time.time()
             if sleep_time > 0:
                 time.sleep(sleep_time)
@@ -939,14 +1001,12 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
     def closePort(self):
         """Run when an engine shutdown is requested."""
         self.logger.info(None, "Shutting down.")
-        self.logger.info(None, "Shutting down the loop thread.")
+        self.logger.info(None, "Shutting down the loop.")
         self.mqtt_client.disconnect()
-        self.loop_thread.join(self.config.wait_for_thread_shutdown)
-        if self.loop_thread.is_alive():
-            # Logged directly, so a stuck logger thread cannot swallow it.
-            log_direct(self.__class__.__name__, 'ERROR',
-                       "The loop thread did not shut down within "
-                       f"{self.config.wait_for_thread_shutdown} seconds.")
+        self.mqtt_client.loop_stop()
+        for _, data_binding in self.data_bindings.items():
+            if data_binding['dbmanager']:
+                data_binding['dbmanager'].close()
         self.logger.info(None, "Shutting down the logger thread.")
         self.logger.shutdown(self.config.wait_for_thread_shutdown)
         # Logged directly: queued entries are never written once the logger thread has stopped.
@@ -967,113 +1027,6 @@ class MQTTRequester(weewx.drivers.AbstractDevice):
                                  qos,
                                  False,
                                  properties=properties)
-
-class MQTTRequesterLoopThread(threading.Thread):
-    # (thread state) pylint: disable=too-many-instance-attributes
-    ''' The MQTT 'loop' thread. '''
-    def __init__(self,
-                 logger,
-                 mqtt_client,
-                 config,
-                 data_queue,
-                 data_bindings):
-        threading.Thread.__init__(self)
-        self.thread_id = 0
-        self.logger = logger
-        self.mqtt_client = mqtt_client
-        self.config = config
-        self.data_queue = data_queue
-        self.data_bindings = data_bindings
-
-        self.response_topic_mid = None
-        self.subscribed = False
-        # Set in run(), but initialized here, so it is safe to read
-        # before the thread has started.
-        self.running = False
-
-        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
-
-        self.mqtt_client.on_connect = self._on_connect
-        if config.log_mqtt:
-            self.mqtt_client.on_log = self._on_log
-        self.mqtt_client.on_message = self._on_message
-        self.mqtt_client.on_subscribe = self._on_subscribe
-
-        # ToDo: Wait for connection?
-        self.mqtt_client.connect(config.host, config.port, config.keepalive)
-
-    def run(self):
-        self.thread_id = threading.get_native_id()
-        threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
-        self.logger.info(None, f"MQTTRequesterLoopThread, {threading.current_thread().name}, is running.")
-
-        for data_binding_name, data_binding in self.data_bindings.items():
-            if not data_binding['dbmanager']:
-                data_binding['dbmanager'] = weewx.manager.open_manager(data_binding['manager_dict'])
-                self.logger.debug(None, f"Opened database {data_binding_name}.")
-
-        self.running = True
-        self.mqtt_client.loop_forever()
-
-        for data_binding_name, data_binding in self.data_bindings.items():
-            data_binding['dbmanager'].close()
-            self.logger.debug(None, f"Closed database {data_binding_name}.")
-        self.logger.info(None, "Loop thread is shut down.")
-        # Only now is the thread done, so a caller waiting on this flag cannot run ahead of it.
-        self.running = False
-
-    def _on_connect(self, _userdata):
-        (result, mid) = self.mqtt_client.subscribe(self.config.response_topic, self.config.subscribe_qos)
-        self.logger.info(None, f"Subscribing to {self.config.response_topic}, "
-                         f"mid {int(mid)}, "
-                         f"result code {int(result)}.")
-        self.response_topic_mid = mid
-
-        (result, mid) = self.mqtt_client.subscribe(self.config.archive_topic, self.config.subscribe_qos)
-        self.logger.info(None, f"Subscribing to {self.config.archive_topic}, "
-                         f"mid {int(mid)}, "
-                         f"result code {int(result)}.")
-
-    def _on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger.get(level, self.logger.info)(None, f"({self.config.client_id}) MQTT log: {msg}")
-
-    def _on_message(self, _userdata, msg):
-        try:
-            record = json.loads(msg.payload.decode('utf-8'))
-
-            if not hasattr(msg.properties, 'UserProperty'):
-                self.logger.error(None, f'Response with topic {msg.topic}, payload: {msg.payload} skipped; has no "UserProperty".')
-                return
-
-            user_property = msg.properties.UserProperty
-            data_binding = None
-            for keyword_value in user_property:
-                if keyword_value[0] == 'data_binding':
-                    data_binding = keyword_value[1]
-                    break
-
-            if not data_binding:
-                self.logger.error(None, f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
-                                  'has no "data_binding" UserProperty.')
-                return
-
-            if data_binding not in self.data_bindings:
-                self.logger.error(None, f'Response with topic skipped: {msg.topic} payload: {msg.payload}, UserProperty: {user_property} '
-                                  f"has unknown 'data_binding' {data_binding}.")
-                return
-
-            if self.data_bindings[data_binding]['type'] == 'main':
-                # For all records from the 'main' db, create an archive_record
-                self.data_queue.put((record['dateTime'], record))
-            else:
-                self.data_bindings[data_binding]['dbmanager'].addRecord(record)
-        except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
-            self.logger.error(None, f"Response failed with {type(exception)} and reason {exception}.")
-            self.logger.error(None, f"{traceback.format_exc()}")
-
-    def _on_subscribe(self, _userdata, mid):
-        if mid == self.response_topic_mid:
-            self.subscribed = True
 
 if __name__ == '__main__':  # pragma: no cover
     def add_request_parser(parser):
