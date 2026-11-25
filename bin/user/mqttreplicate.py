@@ -366,6 +366,13 @@ class MQTTResponder(weewx.engine.StdService):
 
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
+        self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
+        self.mqtt_client.on_connect = self._on_connect
+        if self.config.log_mqtt:
+            self.mqtt_client.on_log = self._on_log
+        self.mqtt_client.on_message = self._on_message
+        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
+
         self.data_queue = queue.Queue()
         self.threads = []
         # A shared event, so a thread pool thread can signal that it has failed.
@@ -379,14 +386,9 @@ class MQTTResponder(weewx.engine.StdService):
             thread.start()
             self.threads.append(thread)
 
-        self.mqtt_client = MQTTClient(self.logger, self.client_id, None)
-
-        self.loop_thread = MQTTResponderLoopThread(self.logger,
-                                                   self.mqtt_client,
-                                                   self.config,
-                                                   self.data_queue,
-                                                   self.data_bindings)
-        self.loop_thread.start()
+        # paho's network loop owns the first connection and every reconnect.
+        self.mqtt_client.connect_async(self.config.host, self.config.port, self.config.keepalive)
+        self.mqtt_client.loop_start()
 
     def shutDown(self):
         if not self.enabled:
@@ -396,10 +398,10 @@ class MQTTResponder(weewx.engine.StdService):
         try:
             self.logger.info(None, 'Shutting down.')
 
+            self._stop_threads()
+
             for _, data_binding in self.data_bindings.items():
                 data_binding['dbmanager'].close()
-
-            self._stop_threads()
         finally:
             # Flush the queued messages after the threads that produced them have stopped.
             self.logger.info(None, 'Shutting down the logger thread.')
@@ -409,33 +411,27 @@ class MQTTResponder(weewx.engine.StdService):
         log_direct(self.__class__.__name__, 'INFO', "MQTTResponder is shut down.")
 
     def _stop_threads(self):
-        ''' Stop the loop thread and the responder threads. '''
+        ''' Stop the responder threads, then paho's network loop. '''
         timeout = self.config.wait_for_thread_shutdown
+
+        if self.threads:
+            self.logger.info(None, 'Shutting down the responder threads.')
+            for _ in range(self.config.max_responder_threads):
+                self.data_queue.put(None)
+
+            for thread in self.threads:
+                thread.join(timeout)
+                if thread.is_alive():
+                    log_direct(self.__class__.__name__, 'ERROR',
+                               f"A responder thread did not shut down within {timeout} seconds.")
+
+        # Disconnect before stopping the loop, so the DISCONNECT packet gets sent.
+        self.logger.info(None, 'Shutting down the loop.')
         self.mqtt_client.disconnect()
-        self.logger.info(None, 'Shutting down the loop thread.')
-        self.loop_thread.join(timeout)
-        if self.loop_thread.is_alive():
-            # Logged directly, so a stuck logger thread cannot swallow it.
-            log_direct(self.__class__.__name__, 'ERROR',
-                       f"The loop thread did not shut down within {timeout} seconds.")
-
-        if not self.threads:
-            return
-
-        self.logger.info(None, 'Shutting down the responder threads.')
-        for _ in range(self.config.max_responder_threads):
-            self.data_queue.put(None)
-
-        for thread in self.threads:
-            thread.join(timeout)
-            if thread.is_alive():
-                log_direct(self.__class__.__name__, 'ERROR',
-                           f"A responder thread did not shut down within {timeout} seconds.")
+        self.mqtt_client.loop_stop()
 
     def new_archive_record(self, event):
         ''' Handle the new_archive_record event.'''
-        if not self.loop_thread.is_alive():
-            raise ThreadError('The loop thread ended abnormally.')
         if self.thread_error.is_set():
             raise ThreadError('A thread pool thread ended abnormally.')
         for data_binding_name, data_binding in self.data_bindings.items():
@@ -467,42 +463,17 @@ class MQTTResponder(weewx.engine.StdService):
                                  qos,
                                  False,
                                  properties=properties)
-class MQTTResponderLoopThread(threading.Thread):
-    ''' The MQTT 'loop' thread. '''
-    def __init__(self,
-                 logger,
-                 mqtt_client,
-                 config,
-                 data_queue,
-                 data_bindings):
-        threading.Thread.__init__(self)
-        self.thread_id = 0
-        self.logger = logger
-        self.mqtt_client = mqtt_client
-        self.config = config
-        self.data_queue = data_queue
-        self.data_bindings = data_bindings
-
-        self.mqtt_client.on_connect = self._on_connect
-        if config.log_mqtt:
-            self.mqtt_client.on_log = self._on_log
-        self.mqtt_client.on_message = self._on_message
-
-        self.mqtt_logger = mqttcommon.paho_log_methods(self.logger)
-        mqtt_client.connect(config.host, config.port, config.keepalive)
-
-    def run(self):
-        self.thread_id = threading.get_native_id()
-        threading.current_thread().name = f"MQTTReplicate-{self.thread_id}"
-        self.logger.info(None, f"MQTTResponderLoopThread, {threading.current_thread().name}, is running.")
-        self.mqtt_client.loop_forever()
-        self.logger.info(None, "Loop thread is shut down.")
 
     def _on_connect(self, _userdata):
-        (result, mid) = self.mqtt_client.subscribe(self.config.request_topic, self.config.subscribe_qos)
-        self.logger.info(None, f"Subscribing to {self.config.request_topic}, "
-                         f"mid {int(mid)}, "
-                         f"result code {int(result)}.")
+        ''' Subscribe to the request topic. '''
+        try:
+            (result, mid) = self.mqtt_client.subscribe(self.config.request_topic, self.config.subscribe_qos)
+            self.logger.info(None, f"Subscribing to {self.config.request_topic}, "
+                             f"mid {int(mid)}, "
+                             f"result code {int(result)}.")
+        except Exception as exception:  # (want to catch all) pylint: disable=broad-exception-caught
+            # paho's network thread must not die on a callback exception.
+            self.logger.error(None, f"Subscribing failed with {type(exception)} and reason {exception}.")
 
     def _on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger.get(level, self.logger.info)(None, f"({self.config.client_id}) MQTT log: {msg}")
@@ -562,7 +533,6 @@ class MQTTResponderLoopThread(threading.Thread):
         except Exception as exception:  # (want to catch all ) pylint: disable=broad-exception-caught
             self.logger.error(None, f"Request message failed with {type(exception)} and reason {exception}.")
             self.logger.error(None, f"{traceback.format_exc()}")
-            self.mqtt_client.disconnect()
 
 class MQTTResponderThread(threading.Thread):
     # (thread state) pylint: disable=too-many-instance-attributes

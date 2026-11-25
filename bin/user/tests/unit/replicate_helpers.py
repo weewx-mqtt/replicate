@@ -112,7 +112,6 @@ def patched_responder_service(*, queue=False, log_direct=False, use_json=False, 
         manager = stack.enter_context(mock.patch('user.mqttreplicate.weewx.manager'))
         responder_thread = stack.enter_context(mock.patch('user.mqttreplicate.MQTTResponderThread'))
         mqtt_client = stack.enter_context(mock.patch('user.mqttreplicate.MQTTClient'))
-        loop_thread = stack.enter_context(mock.patch('user.mqttreplicate.MQTTResponderLoopThread'))
 
         queue_mock = stack.enter_context(mock.patch('user.mqttreplicate.queue.Queue')) if queue else None
         direct = stack.enter_context(mock.patch('user.mqttreplicate.log_direct')) if log_direct else None
@@ -129,6 +128,6 @@ def patched_responder_service(*, queue=False, log_direct=False, use_json=False, 
 
         yield SimpleNamespace(threading=threading, logger=logger, manager=manager,
                               responder_thread=responder_thread, mqtt_client=mqtt_client,
-                              loop_thread=loop_thread, queue=queue_mock, log_direct=direct,
+                              queue=queue_mock, log_direct=direct,
                               json=json_mock, paho=paho_mock, randint=randint,
                               db_manager=db_manager, client=client)
