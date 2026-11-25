@@ -10,13 +10,13 @@
 import unittest
 import mock
 
-import configobj
 import queue
 import random
 
 import helpers
 
 import user.mqttreplicate
+from user.tests.unit.replicate_helpers import create_requester_config, patched_requester
 
 class PriorityQueueStub:
     def __init__(self):
@@ -44,211 +44,112 @@ class TestMQTTRequester(unittest.TestCase):
     def test_init(self):
         mock_engine = mock.Mock()
         random_int = random.randint(1, 9999)
-        instance_name = helpers.random_string()
-        primary_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Requester': {
-                    instance_name: {
-                        primary_name: {
-                            'type': 'main',
-                            'secondary_data_binding': helpers.random_string()
-                        }
-                    }
+        config, instance_name, primary_name = create_requester_config()
+
+        with patched_requester(random_int=random_int) as mocks:
+            last_good_timestamp = helpers.random_string()
+            manager_dict = helpers.random_string()
+            mock_db_manager = mock.Mock()
+            mocks.manager.get_manager_dict_from_config.return_value = manager_dict
+            mocks.manager.open_manager.return_value = mock_db_manager
+            mock_db_manager.lastGoodStamp.return_value = last_good_timestamp
+
+            SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+
+            client_id = f'MQTTReplicateRequest-{random_int}'
+            self.assertEqual(SUT.config.wait_for_thread_shutdown, 20)
+            mocks.mqtt_client.assert_called_once_with(SUT.logger, client_id, None)
+            mocks.loop_thread.assert_called_once()
+            SUT.loop_thread.start.assert_called_once_with()
+            SUT.mqtt_client.publish.assert_called_once()
+
+            # The default response_topic is RESPONSE_TOPIC.
+            self.assertEqual(SUT.response_topic, f'replicate/response/{client_id}')
+            # The config passed to MQTTRequesterLoopThread carries the response_topic.
+            self.assertEqual(mocks.loop_thread.call_args[0][2].response_topic,
+                             f'replicate/response/{client_id}')
+
+            expected_results = {
+                f"{instance_name}/{primary_name}": {
+                    'request_topic': f"replicate/request/{instance_name}",
+                    'type': 'main',
+                    'manager_dict': manager_dict,
+                    'last_good_timestamp': last_good_timestamp,
+                    'dbmanager': None,
                 }
             }
-        }
-
-        config = configobj.ConfigObj(config_dict)
-
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger'):
-                    with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
-                        with mock.patch('user.mqttreplicate.MQTTClient') as mock_mqtt_client:
-                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
-                                with mock.patch('user.mqttreplicate.random.randint', return_value=random_int):
-                                    last_good_timestamp = helpers.random_string()
-                                    manager_dict = helpers.random_string()
-                                    mock_db_manager = mock.Mock()
-                                    mock_manager.get_manager_dict_from_config.return_value = manager_dict
-                                    mock_manager.open_manager.return_value = mock_db_manager
-                                    mock_db_manager.lastGoodStamp.return_value = last_good_timestamp
-
-                                    SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
-
-                                    client_id = f'MQTTReplicateRequest-{random_int}'
-                                    self.assertEqual(SUT.config.wait_for_thread_shutdown, 20)
-                                    mock_mqtt_client.assert_called_once_with(SUT.logger, client_id, None)
-                                    mock_requester_thread.assert_called_once()
-                                    SUT.loop_thread.start.assert_called_once_with()
-                                    SUT.mqtt_client.publish.assert_called_once()
-
-                                    # The default response_topic is RESPONSE_TOPIC.
-                                    self.assertEqual(SUT.response_topic, f'replicate/response/{client_id}')
-                                    # The config passed to MQTTRequesterLoopThread carries the response_topic.
-                                    self.assertEqual(mock_requester_thread.call_args[0][2].response_topic,
-                                                     f'replicate/response/{client_id}')
-
-                                    expected_results = {
-                                        f"{instance_name}/{primary_name}": {
-                                            'request_topic': f"replicate/request/{instance_name}",
-                                            'type': 'main',
-                                            'manager_dict': manager_dict,
-                                            'last_good_timestamp': last_good_timestamp,
-                                            'dbmanager': None,
-                                        }
-                                    }
-                                    self.assertDictEqual(SUT.data_bindings, expected_results)
+            self.assertDictEqual(SUT.data_bindings, expected_results)
 
     def test_init_log_mqtt_string(self):
         mock_engine = mock.Mock()
-        instance_name = helpers.random_string()
-        primary_name = helpers.random_string()
-        config_dict = {
-            'MQTTReplicate': {
-                'Requester': {
-                    # Config file values arrive as strings; 'False' must not be truthy.
-                    'log_mqtt': 'False',
-                    instance_name: {
-                        primary_name: {
-                            'type': 'main',
-                            'secondary_data_binding': helpers.random_string()
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_requester_config(requester_overrides={'log_mqtt': 'False'})
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_requester() as mocks:
+            mocks.manager.open_manager.return_value = mock.Mock()
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger'):
-                    with mock.patch('user.mqttreplicate.weewx.manager') as mock_manager:
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_requester_thread:
-                                mock_manager.open_manager.return_value = mock.Mock()
+            SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
 
-                                SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
-
-                                self.assertFalse(SUT.config.log_mqtt)
-                                # The parsed value reaches the loop thread's config.
-                                self.assertFalse(mock_requester_thread.call_args[0][2].log_mqtt)
+            self.assertFalse(SUT.config.log_mqtt)
+            # The parsed value reaches the loop thread's config.
+            self.assertFalse(mocks.loop_thread.call_args[0][2].log_mqtt)
 
     def test_close_port(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Requester': {
-                    'wait_for_thread_shutdown': 3,
-                    helpers.random_string(): {
-                        helpers.random_string(): {
-                            'type': 'main',
-                            'secondary_data_binding': helpers.random_string()
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_requester_config(requester_overrides={'wait_for_thread_shutdown': 3})
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_requester(log_direct=True) as mocks:
+            mocks.loop_thread.return_value.is_alive.return_value = False
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger') as mock_logger:
-                    with mock.patch('user.mqttreplicate.weewx.manager'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread') as mock_loop_thread:
-                                with mock.patch('user.mqttreplicate.log_direct') as mock_log_direct:
-                                    mock_loop_thread.return_value.is_alive.return_value = False
+            SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+            SUT.closePort()
 
-                                    SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
-                                    SUT.closePort()
-
-                                    SUT.mqtt_client.disconnect.assert_called_once_with()
-                                    SUT.loop_thread.join.assert_called_once_with(3)
-                                    mock_logger.return_value.info.assert_any_call(None, "Shutting down.")
-                                    mock_logger.return_value.info.assert_any_call(None, "Shutting down the loop thread.")
-                                    mock_logger.return_value.info.assert_any_call(None, "Shutting down the logger thread.")
-                                    mock_logger.return_value.shutdown.assert_called_once_with(3)
-                                    # The completion is logged directly, because the logger thread has stopped by then.
-                                    mock_log_direct.assert_called_once_with('MQTTRequester', 'INFO',
-                                                                            "MQTTRequester is shut down.")
+            SUT.mqtt_client.disconnect.assert_called_once_with()
+            SUT.loop_thread.join.assert_called_once_with(3)
+            mocks.logger.return_value.info.assert_any_call(None, "Shutting down.")
+            mocks.logger.return_value.info.assert_any_call(None, "Shutting down the loop thread.")
+            mocks.logger.return_value.info.assert_any_call(None, "Shutting down the logger thread.")
+            mocks.logger.return_value.shutdown.assert_called_once_with(3)
+            # The completion is logged directly, because the logger thread has stopped by then.
+            mocks.log_direct.assert_called_once_with('MQTTRequester', 'INFO',
+                                                     "MQTTRequester is shut down.")
 
     def test_gen_startup_records(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Requester': {
-                    helpers.random_string(): {
-                        helpers.random_string(): {
-                            'type': 'main',
-                            'secondary_data_binding': helpers.random_string()
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_requester_config()
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_requester() as mocks:
+            with patch(user.mqttreplicate.queue, 'PriorityQueue', PriorityQueueStub):
+                with mock.patch.object(user.mqttreplicate.queue.PriorityQueue,
+                                       'get',
+                                       side_effect=PriorityQueueStub.get,
+                                       autospec=True) as mock_get:
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger') as mock_logger:
-                    with mock.patch('user.mqttreplicate.weewx.manager'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
-                                with patch(user.mqttreplicate.queue, 'PriorityQueue', PriorityQueueStub):
-                                    with mock.patch.object(user.mqttreplicate.queue.PriorityQueue,
-                                                           'get',
-                                                           side_effect=PriorityQueueStub.get,
-                                                           autospec=True) as mock_get:
+                    SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
 
-                                        SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+                    for _record in SUT.genStartupRecords(random.randint(1, 9999)):
+                        pass
 
-                                        for _record in SUT.genStartupRecords(random.randint(1, 9999)):
-                                            pass
-
-                                        self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().info.call_count, 2)
+                    self.assertEqual(mock_get.call_count, 4)
+                    self.assertEqual(mocks.logger().info.call_count, 2)
 
     def test_gen_archive_records(self):
         mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTReplicate': {
-                'Requester': {
-                    helpers.random_string(): {
-                        helpers.random_string(): {
-                            'type': 'main',
-                            'secondary_data_binding': helpers.random_string()
-                        }
-                    }
-                }
-            }
-        }
+        config, _, _ = create_requester_config()
 
-        config = configobj.ConfigObj(config_dict)
+        with patched_requester() as mocks:
+            with patch(user.mqttreplicate.queue, 'PriorityQueue', PriorityQueueStub):
+                with mock.patch.object(user.mqttreplicate.queue.PriorityQueue,
+                                       'get',
+                                       side_effect=PriorityQueueStub.get,
+                                       autospec=True) as mock_get:
 
-        with mock.patch('user.mqttreplicate.threading'):
-            with mock.patch('user.mqttreplicate.paho.mqtt'):
-                with mock.patch('user.mqttcommon.Logger') as mock_logger:
-                    with mock.patch('user.mqttreplicate.weewx.manager'):
-                        with mock.patch('user.mqttreplicate.MQTTClient'):
-                            with mock.patch('user.mqttreplicate.MQTTRequesterLoopThread'):
-                                with patch(user.mqttreplicate.queue, 'PriorityQueue', PriorityQueueStub):
-                                    with mock.patch.object(user.mqttreplicate.queue.PriorityQueue,
-                                                           'get',
-                                                           side_effect=PriorityQueueStub.get,
-                                                           autospec=True) as mock_get:
+                    SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
 
-                                        SUT = user.mqttreplicate.MQTTRequester(config, mock_engine)
+                    for _record in SUT.genArchiveRecords(random.randint(1, 9999)):
+                        pass
 
-                                        for _record in SUT.genArchiveRecords(random.randint(1, 9999)):
-                                            pass
-
-                                        self.assertEqual(mock_get.call_count, 4)
-                                        self.assertEqual(mock_logger().info.call_count, 1)
+                    self.assertEqual(mock_get.call_count, 4)
+                    self.assertEqual(mocks.logger().info.call_count, 1)
 
 if __name__ == '__main__':
     helpers.run_tests()
