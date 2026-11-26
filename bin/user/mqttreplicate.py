@@ -641,14 +641,6 @@ class MQTTResponderThread(threading.Thread):
         ''' Add a publish to the in-flight window, waiting for the oldest when full. '''
         self.inflight.add(mqtt_message_info, self.config.keepalive)
 
-    def _prune_inflight(self):
-        ''' Drop publishes paho has already confirmed. '''
-        self.inflight.prune()
-
-    def _wait_for_oldest(self):
-        ''' Wait for the oldest in-flight publish, so paho's queue stays bounded. '''
-        self.inflight.wait_for_oldest(self.config.keepalive)
-
     def _flush_inflight(self, data):
         ''' Wait for the request's outstanding publishes to be confirmed. '''
         inflight = self.inflight.inflight

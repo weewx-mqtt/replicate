@@ -270,7 +270,7 @@ class TestMQTTResponderThread(unittest.TestCase):
         pending.is_published.return_value = False
         SUT.inflight.inflight = {1: published, 2: pending}
 
-        SUT._prune_inflight()
+        SUT.inflight.prune()
 
         self.assertEqual(list(SUT.inflight.inflight.values()), [pending])
 
@@ -288,7 +288,7 @@ class TestMQTTResponderThread(unittest.TestCase):
         failed.is_published.side_effect = ValueError()
         SUT.inflight.inflight = {1: failed}
 
-        SUT._prune_inflight()
+        SUT.inflight.prune()
 
         self.assertFalse(SUT.inflight.inflight)
 
