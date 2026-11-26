@@ -5,7 +5,6 @@
 #
 ''' Replicate WeeWX dstabases using MQTT request/response functionality.'''
 import argparse
-import collections
 import dataclasses
 import json
 import logging
@@ -561,7 +560,7 @@ class MQTTResponderThread(threading.Thread):
 
         # A bounded window of publishes paho has not confirmed yet. Without it, a
         # backfill would hand paho thousands of messages at once.
-        self.inflight = collections.deque()
+        self.inflight = mqttcommon.PublishTracker(max_outstanding=self.config.throttle_count)
 
     def run(self):
         ''' Publish the data. '''
@@ -640,51 +639,38 @@ class MQTTResponderThread(threading.Thread):
 
     def _track_inflight(self, mqtt_message_info):
         ''' Add a publish to the in-flight window, waiting for the oldest when full. '''
-        self._prune_inflight()
-        self.inflight.append(mqtt_message_info)
-        if len(self.inflight) > self.config.throttle_count:
-            self._wait_for_oldest()
+        self.inflight.add(mqtt_message_info, self.config.keepalive)
 
     def _prune_inflight(self):
         ''' Drop publishes paho has already confirmed. '''
-        while self.inflight:
-            try:
-                if not self.inflight[0].is_published():
-                    break
-            except (ValueError, RuntimeError):
-                pass
-            self.inflight.popleft()
+        self.inflight.prune()
 
     def _wait_for_oldest(self):
         ''' Wait for the oldest in-flight publish, so paho's queue stays bounded. '''
-        if not self.inflight:
-            return
-        mqtt_message_info = self.inflight.popleft()
-        try:
-            mqtt_message_info.wait_for_publish(self.config.keepalive)
-        except (ValueError, RuntimeError):
-            pass
+        self.inflight.wait_for_oldest(self.config.keepalive)
 
     def _flush_inflight(self, data):
         ''' Wait for the request's outstanding publishes to be confirmed. '''
-        if not self.inflight:
+        inflight = self.inflight.inflight
+        if not inflight:
             return
 
         # Bound the wait by the keepalive, so a lost connection does not hang the thread.
         deadline = time.time() + self.config.keepalive
-        while self.inflight:
+        while inflight:
             remaining = deadline - time.time()
             if remaining <= 0:
                 self.logger.error(None, f'Timed out after {self.config.keepalive} seconds '
-                                  f'waiting for {len(self.inflight)} messages '
+                                  f'waiting for {len(inflight)} messages '
                                   f'to be published on topic {data["topic"]}.')
-                self.inflight.clear()
+                inflight.clear()
                 return
-            mqtt_message_info = self.inflight.popleft()
+            mqtt_message_info = next(iter(inflight.values()))
             try:
                 mqtt_message_info.wait_for_publish(remaining)
             except (ValueError, RuntimeError):
                 pass
+            del inflight[mqtt_message_info.mid]
 
 def loader(config_dict, engine):
     """ Load and return the driver. """

@@ -51,7 +51,7 @@ class TestMQTTResponderThread(unittest.TestCase):
         self.assertDictEqual(SUT.data_bindings, expected_results)
         # The thread publishes through the service's client, not its own.
         self.assertEqual(SUT.mqtt_client, mqtt_client)
-        self.assertFalse(SUT.inflight)
+        self.assertFalse(SUT.inflight.inflight)
 
     def test_run(self):
         mock_logger = mock.Mock()
@@ -140,7 +140,7 @@ class TestMQTTResponderThread(unittest.TestCase):
 
                 # A refused publish is logged and is not tracked as in flight.
                 self.assertIn('Error 4', mock_logger.error.call_args[0][1])
-                self.assertFalse(SUT.inflight)
+                self.assertFalse(SUT.inflight.inflight)
 
     def test_run_publish_wait_timeout(self):
         mock_logger = mock.Mock()
@@ -187,7 +187,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                     self.assertEqual(mock_logger.error.call_count, 1)
                     self.assertIn(f'Timed out after {keepalive} seconds',
                                   mock_logger.error.call_args[0][1])
-                    self.assertFalse(SUT.inflight)
+                    self.assertFalse(SUT.inflight.inflight)
                     mock_db_manager.close.assert_called_once()
 
     def test_run_has_exception(self):
@@ -239,17 +239,19 @@ class TestMQTTResponderThread(unittest.TestCase):
                 SUT = create_thread(mock_logger, None, None, thread_config, config, mock.Mock())
 
         first = mock.Mock()
+        first.mid = 1
         first.is_published.return_value = False
         second = mock.Mock()
+        second.mid = 2
         second.is_published.return_value = False
 
         SUT._track_inflight(first)
-        self.assertEqual(list(SUT.inflight), [first])
+        self.assertEqual(list(SUT.inflight.inflight.values()), [first])
 
         # The window is full, so the oldest publish is awaited before the next is added.
         SUT._track_inflight(second)
         first.wait_for_publish.assert_called_once_with(thread_config.keepalive)
-        self.assertEqual(list(SUT.inflight), [second])
+        self.assertEqual(list(SUT.inflight.inflight.values()), [second])
 
     def test_prune_inflight_drops_published_messages(self):
         mock_logger = mock.Mock()
@@ -261,14 +263,16 @@ class TestMQTTResponderThread(unittest.TestCase):
                 SUT = create_thread(mock_logger, None, None, thread_config, config, mock.Mock())
 
         published = mock.Mock()
+        published.mid = 1
         published.is_published.return_value = True
         pending = mock.Mock()
+        pending.mid = 2
         pending.is_published.return_value = False
-        SUT.inflight.extend([published, pending])
+        SUT.inflight.inflight = {1: published, 2: pending}
 
         SUT._prune_inflight()
 
-        self.assertEqual(list(SUT.inflight), [pending])
+        self.assertEqual(list(SUT.inflight.inflight.values()), [pending])
 
     def test_prune_inflight_drops_messages_that_cannot_be_checked(self):
         mock_logger = mock.Mock()
@@ -280,12 +284,13 @@ class TestMQTTResponderThread(unittest.TestCase):
                 SUT = create_thread(mock_logger, None, None, thread_config, config, mock.Mock())
 
         failed = mock.Mock()
+        failed.mid = 1
         failed.is_published.side_effect = ValueError()
-        SUT.inflight.append(failed)
+        SUT.inflight.inflight = {1: failed}
 
         SUT._prune_inflight()
 
-        self.assertFalse(SUT.inflight)
+        self.assertFalse(SUT.inflight.inflight)
 
 
 if __name__ == '__main__':
