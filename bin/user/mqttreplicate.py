@@ -558,9 +558,9 @@ class MQTTResponderThread(threading.Thread):
             self.data_bindings[data_binding_key]['manager_dict'] = \
                 weewx.manager.get_manager_dict_from_config(config_dict, data_binding_name)
 
-        # A bounded window of publishes paho has not confirmed yet. Without it, a
-        # backfill would hand paho thousands of messages at once.
-        self.inflight = mqttcommon.PublishTracker(max_outstanding=self.config.throttle_count)
+        # The window is unbounded: each catchup batch is drained before the next, so
+        # pacing comes from the batch boundary rather than a per-publish wait.
+        self.inflight = mqttcommon.PublishTracker(max_outstanding=None)
 
     def run(self):
         ''' Publish the data. '''

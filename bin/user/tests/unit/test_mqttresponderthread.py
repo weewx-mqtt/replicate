@@ -226,7 +226,7 @@ class TestMQTTResponderThread(unittest.TestCase):
                 mock_thread_error.set.assert_called_once_with()
                 mock_db_manager.close.assert_called_once()
 
-    def test_track_inflight_waits_for_the_oldest_when_full(self):
+    def test_track_inflight_keeps_every_publish_until_the_batch_is_drained(self):
         mock_logger = mock.Mock()
         config, instance_name, _ = create_responder_thread_config_dict()
 
@@ -234,7 +234,6 @@ class TestMQTTResponderThread(unittest.TestCase):
             with mock.patch('user.mqttreplicate.weewx.manager'):
                 thread_config = user.mqttreplicate.MQTTResponderConfig(
                     instance_name=instance_name,
-                    throttle_count=1,
                     keepalive=random.randint(1, 99))
                 SUT = create_thread(mock_logger, None, None, thread_config, config, mock.Mock())
 
@@ -246,12 +245,10 @@ class TestMQTTResponderThread(unittest.TestCase):
         second.is_published.return_value = False
 
         SUT._track_inflight(first)
-        self.assertEqual(list(SUT.inflight.inflight.values()), [first])
-
-        # The window is full, so the oldest publish is awaited before the next is added.
         SUT._track_inflight(second)
-        first.wait_for_publish.assert_called_once_with(thread_config.keepalive)
-        self.assertEqual(list(SUT.inflight.inflight.values()), [second])
+        self.assertEqual(list(SUT.inflight.inflight.values()), [first, second])
+        # The window is unbounded; waiting happens at the batch boundary instead.
+        first.wait_for_publish.assert_not_called()
 
     def test_prune_inflight_drops_published_messages(self):
         mock_logger = mock.Mock()
