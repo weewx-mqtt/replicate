@@ -7,7 +7,6 @@
 import argparse
 import dataclasses
 import json
-import logging
 import queue
 import random
 import threading
@@ -31,7 +30,7 @@ from user import mqttcommon
 
 # All the weewx-mqtt extensions ship their own copy of mqttcommon. Fail loudly when the
 # loaded copy is older than this extension needs, instead of with a mysterious error later.
-if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 2):
+if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 3):
     raise ImportError("user.mqttcommon is too old. An older weewx-mqtt extension likely overwrote it during"
                       " install; reinstall or upgrade all the weewx-mqtt extensions.")
 
@@ -45,15 +44,8 @@ ARCHIVE_TOPIC = 'replicate/archive'
 CONNECT_TIMEOUT = 30
 
 
-def log_direct(name, log_type, msg_text):
-    """ Log an entry without the queue, for a message that must not be lost.
-
-        A queued entry is written by the logger thread, so when that thread is stuck the entry
-        is never written. This writes from the calling thread instead. Only 'INFO' and 'ERROR'
-        are used. """
-    entry = mqttcommon.Logger.create_entry(name, log_type, None, msg_text)
-    args = (f"{entry['name']}-{entry['thread_id']}", entry['msg_text'])
-    getattr(logging.getLogger(__name__), log_type.lower())(mqttcommon.Logger.LOG_FORMAT, *args)
+# Kept as a module alias so callers and tests keep their existing patch point.
+log_direct = mqttcommon.log_direct
 
 class ThreadError(Exception):
     ''' Exception raised when a critical error occurs in a child thread. '''
@@ -659,18 +651,7 @@ class MQTTResponderThread(threading.Thread):
 
     def _drain_inflight(self, timeout):
         """ Give paho a bounded chance to confirm in-flight publishes before disconnect. """
-        if not timeout or timeout <= 0 or not self.inflight.inflight:
-            return
-        deadline = time.time() + timeout
-        for mqtt_message_info in list(self.inflight.inflight.values()):
-            remaining = deadline - time.time()
-            if remaining <= 0:
-                break
-            try:
-                mqtt_message_info.wait_for_publish(remaining)
-            except (ValueError, RuntimeError):
-                pass
-        self.inflight.inflight.clear()
+        mqttcommon.wait_for_inflight(self.inflight, timeout)
 
     def _flush_inflight(self, data):
         ''' Wait for the request's outstanding publishes to be confirmed. '''
