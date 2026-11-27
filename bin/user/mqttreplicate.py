@@ -238,7 +238,7 @@ class MQTTClient():  # (paho callback adapter) pylint: disable=too-many-instance
         ''' Stop paho's network loop thread. '''
         return self.client.loop_stop()
 
-    def publish(self, topic, data, qos, retain, properties=None):
+    def publish(self, topic, data, qos, retain, properties=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
         ''' Publish a MQTT message. '''
         return self.client.publish(topic, data, qos, retain, properties)
 
@@ -530,7 +530,7 @@ class MQTTResponder(weewx.engine.StdService):
 class MQTTResponderThread(threading.Thread):
     # (thread state) pylint: disable=too-many-instance-attributes
     '''  Publish the requested data. '''
-    def __init__(self,
+    def __init__(self,  # pylint: disable=too-many-arguments,too-many-positional-arguments
                  logger,
                  thread_error,
                  data_queue,
