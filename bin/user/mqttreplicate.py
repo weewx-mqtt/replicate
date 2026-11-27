@@ -25,7 +25,7 @@ import weewx
 import weewx.drivers
 import weewx.engine
 
-from weeutil.weeutil import to_bool, to_int
+from weeutil.weeutil import to_bool, to_float, to_int
 
 from user import mqttcommon
 
@@ -256,8 +256,9 @@ class MQTTResponderConfig:
     request_topic: str = None
     archive_topic: str = None
     delta: int = None
-    throttle_count: int = None
-    throttle_sleep: int = None
+    batch_size: int = None
+    batch_sleep: float = None
+    wait_for_inflight: int = None
     log_msg_count: int = None
     host: str = None
     port: int = None
@@ -293,7 +294,6 @@ def parse_responder_config(config_dict, logger):
         raise AttributeError("At least one instance is required.")
 
     instance_name = service_dict.sections[0]
-    throttle_count = to_int(service_dict.get('throttle_count', 1000))
 
     return MQTTResponderConfig(
         client_id=client_id,
@@ -302,9 +302,10 @@ def parse_responder_config(config_dict, logger):
         request_topic=service_dict.get('request_topic', f'{REQUEST_TOPIC}/{instance_name}'),
         archive_topic=service_dict.get('archive_topic', ARCHIVE_TOPIC),
         delta=to_int(service_dict.get('delta', 60)),
-        throttle_count=throttle_count,
-        throttle_sleep=to_int(service_dict.get('throttle_sleep', 1)),
-        log_msg_count=to_int(service_dict.get('log_msg_count', throttle_count)),
+        batch_size=to_int(service_dict.get('batch_size', 200)),
+        batch_sleep=to_float(service_dict.get('batch_sleep', 0.1)),
+        wait_for_inflight=to_int(service_dict.get('wait_for_inflight', 2)),
+        log_msg_count=to_int(service_dict.get('log_msg_count', 1000)),
         host=service_dict.get('host', 'localhost'),
         port=to_int(service_dict.get('port', 1883)),
         keepalive=to_int(service_dict.get('keepalive', 60)),
@@ -585,6 +586,9 @@ class MQTTResponderThread(threading.Thread):
                 self.thread_error.set()
                 break
 
+        # As in publish, the thread drains before the service stops paho's network loop.
+        self._drain_inflight(self.config.wait_for_inflight)
+
         for _data_binding_key, data_binding in self.data_bindings.items():
             data_binding['dbmanager'].close()
 
@@ -613,33 +617,60 @@ class MQTTResponderThread(threading.Thread):
         for record in self.data_bindings[data['data_binding']]['dbmanager']\
                 .genBatchRecords(data['start_timestamp']):
             record_count += 1
-            payload = json.dumps(record)
-            self.logger.debug(None, f"Responding/publishing on topic {data['topic']}, properties {data['properties']}, payload: {payload}.")
-            mqtt_message_info = self.mqtt_client.publish(data['topic'],
-                                                         payload,
-                                                         self.config.publish_qos,
-                                                         False,
-                                                         properties=data['properties'])
-            if mqtt_message_info.rc > 0:
-                self.logger.error(None, f"Error {int(mqtt_message_info.rc)}, "
-                                  f"{paho.mqtt.client.error_string(mqtt_message_info.rc)} "
-                                  f"responding/publishing on topic {data['topic']}, "
-                                  f"properties {data['properties']}, payload: {payload}.")
-            else:
+            mqtt_message_info = self._publish_record(data, record)
+            if mqtt_message_info is not None:
                 self._track_inflight(mqtt_message_info)
 
             if record_count % self.config.log_msg_count == 0:
                 self.logger.info(None, f"{record_count} 'catchup' records {weeutil.weeutil.timestamp_to_string(record['dateTime'])} "
                                  "have been published.")
 
-            if record_count % self.config.throttle_count == 0:
-                time.sleep(self.config.throttle_sleep)
+            self._pace_batch(data, record_count)
 
         return record_count
 
+    def _publish_record(self, data, record):
+        ''' Publish one catchup record; return its message info, or None on a refused publish. '''
+        payload = json.dumps(record)
+        self.logger.debug(None, f"Responding/publishing on topic {data['topic']}, properties {data['properties']}, payload: {payload}.")
+        mqtt_message_info = self.mqtt_client.publish(data['topic'],
+                                                     payload,
+                                                     self.config.publish_qos,
+                                                     False,
+                                                     properties=data['properties'])
+        if mqtt_message_info.rc > 0:
+            self.logger.error(None, f"Error {int(mqtt_message_info.rc)}, "
+                              f"{paho.mqtt.client.error_string(mqtt_message_info.rc)} "
+                              f"responding/publishing on topic {data['topic']}, "
+                              f"properties {data['properties']}, payload: {payload}.")
+            return None
+        return mqtt_message_info
+
+    def _pace_batch(self, data, record_count):
+        ''' Drain and pace at each batch boundary. '''
+        if record_count % self.config.batch_size == 0:
+            self._flush_inflight(data)
+            if self.config.batch_sleep:
+                time.sleep(self.config.batch_sleep)
+
     def _track_inflight(self, mqtt_message_info):
-        ''' Add a publish to the in-flight window, waiting for the oldest when full. '''
+        ''' Add a publish to the in-flight window. '''
         self.inflight.add(mqtt_message_info, self.config.keepalive)
+
+    def _drain_inflight(self, timeout):
+        """ Give paho a bounded chance to confirm in-flight publishes before disconnect. """
+        if not timeout or timeout <= 0 or not self.inflight.inflight:
+            return
+        deadline = time.time() + timeout
+        for mqtt_message_info in list(self.inflight.inflight.values()):
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            try:
+                mqtt_message_info.wait_for_publish(remaining)
+            except (ValueError, RuntimeError):
+                pass
+        self.inflight.inflight.clear()
 
     def _flush_inflight(self, data):
         ''' Wait for the request's outstanding publishes to be confirmed. '''

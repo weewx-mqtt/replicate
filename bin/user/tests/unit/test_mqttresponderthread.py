@@ -82,8 +82,8 @@ class TestMQTTResponderThread(unittest.TestCase):
                 thread_config = user.mqttreplicate.MQTTResponderConfig(
                     instance_name=instance_name,
                     log_msg_count=random.randint(2, 100),
-                    throttle_count=1000,
-                    throttle_sleep=1,
+                    batch_size=200,
+                    batch_sleep=0.1,
                     keepalive=60,
                     publish_qos=publish_qos)
                 SUT = create_thread(mock_logger, mock_thread_error, mock_data_queue,
@@ -129,8 +129,8 @@ class TestMQTTResponderThread(unittest.TestCase):
                 thread_config = user.mqttreplicate.MQTTResponderConfig(
                     instance_name=instance_name,
                     log_msg_count=1000,
-                    throttle_count=1000,
-                    throttle_sleep=1,
+                    batch_size=200,
+                    batch_sleep=0.1,
                     keepalive=60,
                     publish_qos=1)
                 SUT = create_thread(mock_logger, mock.Mock(), mock_data_queue,
@@ -174,8 +174,8 @@ class TestMQTTResponderThread(unittest.TestCase):
                     thread_config = user.mqttreplicate.MQTTResponderConfig(
                         instance_name=instance_name,
                         log_msg_count=1000,
-                        throttle_count=1000,
-                        throttle_sleep=1,
+                        batch_size=200,
+                        batch_sleep=0.1,
                         keepalive=keepalive,
                         publish_qos=1)
                     SUT = create_thread(mock_logger, mock.Mock(), mock_data_queue,
@@ -287,6 +287,56 @@ class TestMQTTResponderThread(unittest.TestCase):
 
         SUT.inflight.prune()
 
+        self.assertFalse(SUT.inflight.inflight)
+
+    def test_publish_records_drains_each_batch_and_sleeps(self):
+        mock_logger = mock.Mock()
+        config, instance_name, binding_name = create_responder_thread_config_dict()
+        data = {
+            'topic': helpers.random_string(),
+            'data_binding': f'{instance_name}/{binding_name}',
+            'properties': None,
+            'start_timestamp': 0,
+        }
+        thread_config = user.mqttreplicate.MQTTResponderConfig(
+            instance_name=instance_name, batch_size=2, batch_sleep=0.5,
+            log_msg_count=1000, keepalive=60, publish_qos=1)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.weewx.manager'):
+                with mock.patch('user.mqttreplicate.time') as mock_time:
+                    mock_time.time.return_value = 100
+                    db_manager = mock.Mock()
+                    db_manager.genBatchRecords.return_value = [{'dateTime': i} for i in range(5)]
+                    client = mock.Mock()
+                    message_info = mock.Mock(rc=0, mid=1)
+                    client.publish.return_value = message_info
+                    SUT = create_thread(mock_logger, mock.Mock(), mock.Mock(), thread_config, config, client)
+                    SUT.data_bindings[data['data_binding']]['dbmanager'] = db_manager
+
+                    self.assertEqual(SUT._publish_records(data), 5)
+                    self.assertEqual(client.publish.call_count, 5)
+                    # Two full batches, each drained and paced before the next.
+                    self.assertEqual(message_info.wait_for_publish.call_count, 2)
+                    self.assertEqual(mock_time.sleep.call_count, 2)
+                    mock_time.sleep.assert_called_with(0.5)
+                    # The last, partial batch is drained by _respond, not here.
+                    self.assertEqual(list(SUT.inflight.inflight.values()), [message_info])
+
+    def test_drain_inflight_waits_within_the_timeout(self):
+        mock_logger = mock.Mock()
+        config, instance_name, _ = create_responder_thread_config_dict()
+        thread_config = user.mqttreplicate.MQTTResponderConfig(instance_name=instance_name, keepalive=60)
+
+        with mock.patch('user.mqttreplicate.threading'):
+            with mock.patch('user.mqttreplicate.weewx.manager'):
+                SUT = create_thread(mock_logger, mock.Mock(), mock.Mock(), thread_config, config, mock.Mock())
+
+        pending = mock.Mock()
+        SUT.inflight.inflight = {1: pending}
+        SUT._drain_inflight(2)
+
+        pending.wait_for_publish.assert_called_once()
         self.assertFalse(SUT.inflight.inflight)
 
 

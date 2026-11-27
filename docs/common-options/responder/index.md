@@ -65,19 +65,22 @@ The default value is 60.
 ## log_msg_count
 
 Controls how often the count published 'catchup' records are logged.
-The default value is the `throttle_count` amount.
-
-### throttle_count
-
-When publishing 'catchup' data, it may be published fast enough that the broker is 'overloaded'
-The responder will sleep for `throttle_sleep` seconds for every `throttle_count` records that are published.
 The default value is 1000.
 
-### throttle_sleep
+### batch_size
 
-When publishing 'catchup' data, it may be published fast enough that the broker is 'overloaded'
-The responder will sleep for `throttle_sleep` seconds for every `throttle_count` records that are published.
-The default value is 1 (second).
+Catchup records are published in batches; after each batch the responder waits for all
+acknowledgements before starting the next. The default value is 200 records.
+
+### batch_sleep
+
+Seconds to sleep between catchup batches, to pace the broker and yield to other threads.
+The default value is 0.1 seconds.
+
+### wait_for_inflight
+
+At shutdown, the responder thread waits up to this many seconds for paho to confirm any
+remaining publishes before the network loop is stopped. The default value is 2 seconds.
 
 ### max_responder_threads
 

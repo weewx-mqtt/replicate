@@ -79,8 +79,9 @@ class TestMQTTResponder(unittest.TestCase):
             # The parsed options reach the thread through the config object.
             self.assertEqual(SUT.config.instance_name, instance_name)
             self.assertEqual(SUT.config.log_msg_count, 1000)
-            self.assertEqual(SUT.config.throttle_count, 1000)
-            self.assertEqual(SUT.config.throttle_sleep, 1)
+            self.assertEqual(SUT.config.batch_size, 200)
+            self.assertEqual(SUT.config.batch_sleep, 0.1)
+            self.assertEqual(SUT.config.wait_for_inflight, 2)
             self.assertEqual(SUT.config.delta, 60)
             self.assertTrue(SUT.config.log_mqtt)
             self.assertEqual(SUT.config.host, 'localhost')
